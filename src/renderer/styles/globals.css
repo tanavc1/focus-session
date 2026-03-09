@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    @apply bg-slate-900 text-slate-100 font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+    overflow: hidden;
+  }
+
+  #root {
+    @apply h-screen w-screen flex flex-col overflow-hidden;
+  }
+
+  /* macOS traffic light spacer */
+  .titlebar-spacer {
+    -webkit-app-region: drag;
+    height: 28px;
+    min-height: 28px;
+  }
+
+  /* Scrollable content areas */
+  .scrollable {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+  }
+
+  .scrollable::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollable::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollable::-webkit-scrollbar-thumb {
+    @apply bg-slate-600 rounded-full;
+  }
+
+  /* Drag region for frameless window */
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500
+           text-white rounded-lg font-medium text-sm transition-colors duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed no-drag;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600
+           text-slate-200 rounded-lg font-medium text-sm transition-colors duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed no-drag;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-600
+           text-white rounded-lg font-medium text-sm transition-colors duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed no-drag;
+  }
+
+  .card {
+    @apply bg-slate-800 border border-slate-700/50 rounded-xl p-4;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 bg-slate-700/60 border border-slate-600 rounded-lg
+           text-slate-100 placeholder-slate-400 text-sm focus:outline-none
+           focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all no-drag;
+  }
+
+  .label {
+    @apply block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide;
+  }
+
+  .badge-productive {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-green-900/60 text-green-300 border border-green-700/30;
+  }
+
+  .badge-distracting {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-red-900/60 text-red-300 border border-red-700/30;
+  }
+
+  .badge-neutral {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-slate-700/60 text-slate-300 border border-slate-600/30;
+  }
+
+  .badge-idle {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-slate-700/30 text-slate-500 border border-slate-700/30;
+  }
+
+  .badge-unknown {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-slate-700/30 text-slate-400 border border-slate-600/30;
+  }
+}
