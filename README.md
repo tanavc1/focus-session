@@ -1,103 +1,78 @@
-# Focus Session
+# Focus
 
-A local-first focus tracking desktop app for macOS. Track what you work on, detect distractions, and get an AI-generated session report — all running locally with zero cloud dependencies.
+A local-first focus and productivity tracker for macOS. Tracks your active apps and websites, detects distraction, measures flow state, and generates AI-powered session reports — all running privately on your Mac.
+
+---
+
+## Download
+
+**[⬇ Download the latest Focus.dmg](https://github.com/tanavc1/focus-session/releases/tag/latest)**
+
+> macOS 12 (Monterey) or later · Apple Silicon and Intel both supported
+
+### Install in 3 steps
+
+1. Open the `.dmg` → drag **Focus** to your **Applications** folder
+2. **Right-click** Focus in Applications → click **Open** (required once for unsigned builds)
+3. Grant **Accessibility** permission when prompted
+
+---
+
+## macOS Permissions
+
+| Permission | Why |
+|---|---|
+| **Accessibility** | Read the active app name and window title |
+| **Automation → Browser** | Read the current URL in Safari / Chrome / Arc |
+
+Grant them in **System Settings → Privacy & Security** if not prompted automatically.
+
+---
 
 ## Features
 
-- **Activity Tracking**: Polls active app, window title, and browser domain every 3 seconds
-- **Distraction Detection**: Rules-based classification (productive / neutral / distracting / idle)
-- **Session Reports**: Charts, timeline, focus score, top apps/sites, longest streak
-- **Local AI Summaries**: Ollama-powered session summaries and coaching suggestions
-- **Privacy First**: All data stored locally in SQLite, no cloud sync, no keystrokes captured
+- **Activity tracking** — polls active app, window title, and browser URL every 3 s
+- **Distraction detection** — classifies activity as productive / neutral / distracting / idle
+- **Flow state** — detects sustained focus (25+ min) with live in-session indicator and menu bar 🔥
+- **Session reports** — focus score, flow periods, top apps, distracting sites, AI coaching
+- **AI summaries** — works with Ollama (local), Claude API, or OpenAI API
+- **Vision analysis** — optional screen snapshots for richer context (Ollama vision models)
+- **Spotify integration** — shows now-playing track with album art during sessions
+- **Menu bar** — live timer and quick start/stop without opening the window
+- **Privacy first** — all data in local SQLite, nothing leaves your Mac
 
-## Prerequisites
+---
 
-- macOS (tested on macOS 13+)
-- Node.js 18+ and npm
-- Ollama (for AI summaries — optional but recommended)
+## Building from source
 
-## Setup
-
-### 1. Install Node dependencies
+**Requirements:** Node.js 20+, macOS
 
 ```bash
-cd "Focus App"
-npm install
+git clone https://github.com/tanavc1/focus-session.git
+cd focus-session
+npm install        # also rebuilds native modules for Electron
+npm start          # dev mode with hot reload
+npm run make       # produces Focus.dmg in out/make/
 ```
 
-### 2. Rebuild native modules for Electron
+---
+
+## Optional: Local AI with Ollama
+
+Install [Ollama](https://ollama.com) and pull a model:
 
 ```bash
-npx electron-rebuild -f -w better-sqlite3
-```
-
-### 3. Install and start Ollama (optional, for AI summaries)
-
-```bash
-# Install Ollama
 brew install ollama
-
-# Start the Ollama server (run in a separate terminal)
 ollama serve
-
-# Pull a model (choose one):
-ollama pull llama3.1:8b       # ~4.7GB — best quality
-ollama pull phi3:mini          # ~2.3GB — faster, lighter
-ollama pull llama3.2:3b        # ~2.0GB — good balance
+ollama pull phi4-mini          # language model — session summaries
+ollama pull qwen2.5vl:7b       # vision model — optional screen analysis
 ```
 
-### 4. Grant Accessibility permissions
+Configure in **Settings → AI** inside the app. Claude and OpenAI APIs also supported.
 
-Focus Session uses AppleScript to detect the active application and window title.
+---
 
-1. Open **System Settings → Privacy & Security → Accessibility**
-2. Click **+** and add the **Focus Session** app (or your terminal during dev)
-3. Do the same for **System Settings → Privacy & Security → Automation** if prompted
-
-> **Note:** You may be prompted automatically the first time the app runs. Just approve the dialogs.
-
-### 5. Run the app
-
-```bash
-npm start
-```
-
-## macOS Permissions Required
-
-| Permission | Why |
-|------------|-----|
-| Accessibility | To read active app name and window title via AppleScript |
-| Automation → Browsers | To read the current browser URL/domain (optional) |
-
-The app will prompt for these on first run.
-
-## Project Structure
-
-```
-src/
-├── main/                    # Electron main process (Node.js)
-│   ├── index.ts             # App entry, BrowserWindow setup
-│   ├── config/defaults.ts   # Default settings and classification rules
-│   ├── database/db.ts       # SQLite CRUD via better-sqlite3
-│   ├── tracking/
-│   │   ├── macosTracker.ts  # AppleScript + idle detection
-│   │   └── activityTracker.ts # Poll loop, event persistence
-│   ├── analytics/
-│   │   ├── distractionClassifier.ts # Rules-based classification
-│   │   └── sessionAnalyzer.ts       # Event→block grouping, report computation
-│   ├── llm/ollamaClient.ts  # Ollama HTTP client + prompt builders
-│   └── ipc/handlers.ts      # All IPC handlers (session, settings, reports)
-├── preload/index.ts         # Exposes safe API to renderer via contextBridge
-├── renderer/                # React frontend
-│   ├── App.tsx              # Router setup
-│   ├── pages/               # Home, ActiveSession, Report, History, Settings
-│   ├── components/          # Layout, modals, timeline, stat cards
-│   ├── store/useStore.ts    # Zustand global state
-│   └── hooks/useSession.ts  # Session control + activity subscription
-└── shared/types.ts          # Shared TypeScript types
-```
-
-## Database Location
+## Data location
 
 ```
 ~/Library/Application Support/focus-session/focus-session.db
@@ -105,60 +80,18 @@ src/
 
 Delete this file to reset all data.
 
-## Ollama Model Notes
-
-| Model | Size | Notes |
-|-------|------|-------|
-| `llama3.1:8b` | ~4.7GB | Default. Best quality for summarization |
-| `phi3:mini` | ~2.3GB | Faster, decent quality |
-| `llama3.2:3b` | ~2.0GB | Good balance of speed and quality |
-
-The model can be changed in **Settings → AI / Ollama**.
-
-## What is tracked
-
-- Active application name
-- Window title (not content)
-- Browser domain (not full URL, not page content)
-- System idle time (seconds since last keyboard/mouse input)
-- Timestamps of all activity changes
-
-## What is NOT tracked
-
-- Keystrokes
-- Screenshots
-- Window/page content
-- Clipboard data
-- Network traffic
-- Personal information
-
-## Tech Stack
-
-- **Desktop**: Electron 31 + electron-forge
-- **Frontend**: React 18 + TypeScript + Tailwind CSS
-- **Charts**: Recharts
-- **Backend**: Node.js (in main process)
-- **Database**: SQLite via better-sqlite3
-- **State**: Zustand
-- **LLM**: Ollama (local)
-- **Build**: Vite
+---
 
 ## Troubleshooting
 
-### App doesn't detect activity
-- Grant Accessibility permission in System Settings
-- Restart the app after granting permission
+**App doesn't detect activity** — Grant Accessibility in System Settings, then restart the app.
 
-### Browser domain not detected
-- Grant Automation permission for your browser (Safari, Chrome, Arc, etc.)
-- Firefox does not support AppleScript URL access; domain falls back to window title parsing
+**Browser URL not detected** — Grant Automation permission for your browser (Firefox not supported).
 
-### AI summary not showing
-- Ensure `ollama serve` is running in a terminal
-- Check **Settings → AI / Ollama** that the endpoint is `http://localhost:11434`
-- Make sure you've pulled a model: `ollama pull llama3.1:8b`
+**"Focus can't be opened" on first launch** — Right-click the app → Open. This is a one-time Gatekeeper bypass for unsigned apps.
 
-### Native module error on first run
-```bash
-npx electron-rebuild -f -w better-sqlite3
-```
+---
+
+## Automatic releases
+
+Every push to `main` builds a new DMG via GitHub Actions and updates the [latest release](https://github.com/tanavc1/focus-session/releases/tag/latest) automatically. No manual steps needed.

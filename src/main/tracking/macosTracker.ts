@@ -4,6 +4,12 @@ import { BROWSER_APP_NAMES } from '../config/defaults';
 
 const execAsync = promisify(exec);
 
+// ─── Idle time cache ──────────────────────────────────────────────────────────
+// ioreg is an expensive kernel call — only run it every 15 s.
+const IDLE_CACHE_TTL_MS = 15_000;
+let _cachedIdleSeconds = 0;
+let _lastIdleCheckAt   = 0;
+
 export interface RawActivity {
   app_name: string | null;
   window_title: string | null;
@@ -123,16 +129,20 @@ async function getBrowserUrl(app_name: string): Promise<string | null> {
  * Get system idle time in seconds using IOKit.
  */
 async function getIdleSeconds(): Promise<number> {
+  const now = Date.now();
+  if (now - _lastIdleCheckAt < IDLE_CACHE_TTL_MS) return _cachedIdleSeconds;
+  _lastIdleCheckAt = now;
   try {
     const { stdout } = await execAsync(
       "ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print $NF/1000000000; exit}'",
-      { timeout: 1500 }
+      { timeout: 1500 },
     );
     const seconds = parseFloat(stdout.trim());
-    return isNaN(seconds) ? 0 : seconds;
+    if (!isNaN(seconds)) _cachedIdleSeconds = seconds;
   } catch {
-    return 0;
+    // keep stale value — non-fatal
   }
+  return _cachedIdleSeconds;
 }
 
 // ─── Domain extraction ────────────────────────────────────────────────────────

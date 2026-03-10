@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, Shield, Clock, Plus, Trash2, CheckCircle, XCircle, Edit3, Save, X } from 'lucide-react';
+import {
+  Bot, Shield, Clock, Plus, Trash2, CheckCircle, XCircle,
+  Edit3, Save, X, Eye, EyeOff, RefreshCw, Camera, Bell,
+} from 'lucide-react';
 import { useAppStore } from '../store/useStore';
-import type { Settings, AppClassification, ClassificationType } from '../../shared/types';
+import type { Settings, AppClassification, ClassificationType, AiProvider } from '../../shared/types';
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'general' | 'rules' | 'llm' | 'privacy'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'rules' | 'ai' | 'privacy'>('general');
 
   const tabs = [
     { id: 'general', label: 'General' },
     { id: 'rules',   label: 'Distraction Rules' },
-    { id: 'llm',     label: 'AI / Ollama' },
+    { id: 'ai',      label: 'AI' },
     { id: 'privacy', label: 'Privacy' },
   ] as const;
 
@@ -39,7 +42,7 @@ export default function SettingsPage() {
 
       {activeTab === 'general' && <GeneralSettings />}
       {activeTab === 'rules'   && <RulesSettings />}
-      {activeTab === 'llm'     && <LlmSettings />}
+      {activeTab === 'ai'      && <AiSettings />}
       {activeTab === 'privacy' && <PrivacySettings />}
     </div>
   );
@@ -89,7 +92,7 @@ function GeneralSettings() {
               {((local.tracking_interval_ms ?? 3000) / 1000).toFixed(1)}s
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">How often to capture activity (lower = more data, higher CPU)</p>
+          <p className="text-xs text-slate-500 mt-1">How often to capture activity (lower = more detail, higher CPU)</p>
         </div>
 
         <div>
@@ -121,6 +124,376 @@ function GeneralSettings() {
             onChange={(v) => setLocal((p) => ({ ...p, enable_browser_tracking: v }))}
           />
         </div>
+      </div>
+
+      <div className="card space-y-4">
+        <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+          <Bell size={14} />
+          Focus Notifications
+        </h3>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-slate-300">Distraction Alerts</p>
+            <p className="text-xs text-slate-500">
+              Get a notification after ~1 minute of sustained distracting activity — only when you truly drift off track
+            </p>
+          </div>
+          <Toggle
+            value={local.enable_focus_notifications ?? true}
+            onChange={(v) => setLocal((p) => ({ ...p, enable_focus_notifications: v }))}
+          />
+        </div>
+
+        {(local.enable_focus_notifications ?? true) && (
+          <div className="p-3 bg-slate-800/40 rounded-lg text-xs text-slate-400 space-y-1">
+            <p>• Triggers after ~1 minute of continuous distracting activity</p>
+            <p>• Tells you exactly what you're doing (app or website)</p>
+            <p>• Waits 5 minutes before notifying again — never spammy</p>
+            <p>• Resets automatically when you return to focused work</p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end">
+        <button className="btn-primary" onClick={save}>
+          {saved ? <><CheckCircle size={14} /> Saved</> : <><Save size={14} /> Save Settings</>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI Settings ──────────────────────────────────────────────────────────────
+
+function AiSettings() {
+  const { settings, setSettings } = useAppStore();
+  const [local, setLocal] = useState<Partial<Settings>>({});
+  const [status, setStatus] = useState<{
+    is_running: boolean;
+    is_configured: boolean;
+    provider: string;
+    models: string[];
+    message: string;
+  } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [showClaudeKey, setShowClaudeKey] = useState(false);
+  const [showOpenAiKey, setShowOpenAiKey] = useState(false);
+
+  useEffect(() => {
+    if (settings) setLocal(settings);
+  }, [settings]);
+
+  async function checkStatus() {
+    setChecking(true);
+    const res = await window.api.checkLlmStatus();
+    if (res.success && res.data) setStatus(res.data);
+    setChecking(false);
+  }
+
+  async function save() {
+    const res = await window.api.setSettings(local);
+    if (res.success && res.data) {
+      setSettings(res.data);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  }
+
+  const provider: AiProvider = (local.ai_provider ?? 'ollama') as AiProvider;
+
+  return (
+    <div className="space-y-5">
+      {/* Enable AI toggle */}
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+              <Bot size={14} />
+              AI Session Summaries
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">Generate coaching insights and summaries after each session</p>
+          </div>
+          <Toggle
+            value={local.enable_llm ?? true}
+            onChange={(v) => setLocal((p) => ({ ...p, enable_llm: v }))}
+          />
+        </div>
+      </div>
+
+      {/* Provider selection */}
+      <div className="card space-y-4">
+        <h3 className="text-sm font-semibold text-slate-300">Language Model Provider</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {(['ollama', 'claude', 'openai'] as AiProvider[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setLocal((prev) => ({ ...prev, ai_provider: p }))}
+              className={`p-3 rounded-xl border text-sm font-medium transition-all ${
+                provider === p
+                  ? 'border-brand-500 bg-brand-900/30 text-brand-300'
+                  : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600'
+              }`}
+            >
+              <div className="text-base mb-1">
+                {p === 'ollama' ? '🦙' : p === 'claude' ? '🤖' : '✨'}
+              </div>
+              <div className="capitalize">{p === 'ollama' ? 'Ollama' : p === 'claude' ? 'Claude' : 'OpenAI'}</div>
+              <div className="text-xs mt-0.5 opacity-60">
+                {p === 'ollama' ? 'Local / free' : p === 'claude' ? 'API key' : 'API key'}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Ollama settings */}
+        {provider === 'ollama' && (
+          <div className="space-y-3 pt-1">
+            <div>
+              <label className="label">Ollama Endpoint</label>
+              <input
+                className="input"
+                value={local.ollama_endpoint ?? ''}
+                onChange={(e) => setLocal((p) => ({ ...p, ollama_endpoint: e.target.value }))}
+                placeholder="http://localhost:11434"
+              />
+            </div>
+            <div>
+              <label className="label">Model</label>
+              <input
+                className="input"
+                value={local.ollama_model ?? ''}
+                onChange={(e) => setLocal((p) => ({ ...p, ollama_model: e.target.value }))}
+                placeholder="phi4-mini:latest"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Recommended: <code className="font-mono">phi4-mini:latest</code>, <code className="font-mono">llama3.1:8b</code>, <code className="font-mono">qwen2.5:7b</code>
+              </p>
+            </div>
+            <div className="bg-slate-800/40 rounded-lg p-3 space-y-1 text-xs text-slate-400">
+              <p className="font-medium text-slate-300">Setup:</p>
+              <p><code className="font-mono text-slate-300">brew install ollama</code></p>
+              <p><code className="font-mono text-slate-300">ollama serve</code></p>
+              <p><code className="font-mono text-slate-300">ollama pull phi4-mini</code></p>
+            </div>
+          </div>
+        )}
+
+        {/* Claude settings */}
+        {provider === 'claude' && (
+          <div className="space-y-3 pt-1">
+            <div>
+              <label className="label">Claude API Key</label>
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showClaudeKey ? 'text' : 'password'}
+                  value={local.claude_api_key ?? ''}
+                  onChange={(e) => setLocal((p) => ({ ...p, claude_api_key: e.target.value }))}
+                  placeholder="sk-ant-..."
+                />
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                  onClick={() => setShowClaudeKey(!showClaudeKey)}
+                >
+                  {showClaudeKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">Get your key at console.anthropic.com</p>
+            </div>
+            <div>
+              <label className="label">Language Model</label>
+              <select
+                className="input"
+                value={local.language_model ?? 'claude-sonnet-4-6'}
+                onChange={(e) => setLocal((p) => ({ ...p, language_model: e.target.value }))}
+              >
+                <option value="claude-sonnet-4-6">claude-sonnet-4-6 (recommended)</option>
+                <option value="claude-opus-4-6">claude-opus-4-6 (most powerful)</option>
+                <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fastest, cheapest)</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* OpenAI settings */}
+        {provider === 'openai' && (
+          <div className="space-y-3 pt-1">
+            <div>
+              <label className="label">OpenAI API Key</label>
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showOpenAiKey ? 'text' : 'password'}
+                  value={local.openai_api_key ?? ''}
+                  onChange={(e) => setLocal((p) => ({ ...p, openai_api_key: e.target.value }))}
+                  placeholder="sk-..."
+                />
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                  onClick={() => setShowOpenAiKey(!showOpenAiKey)}
+                >
+                  {showOpenAiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">Get your key at platform.openai.com</p>
+            </div>
+            <div>
+              <label className="label">Language Model</label>
+              <select
+                className="input"
+                value={local.language_model ?? 'gpt-4o-mini'}
+                onChange={(e) => setLocal((p) => ({ ...p, language_model: e.target.value }))}
+              >
+                <option value="gpt-4o-mini">gpt-4o-mini (recommended, cost-effective)</option>
+                <option value="gpt-4o">gpt-4o (most capable)</option>
+                <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Status check */}
+        <div className="pt-1 flex items-center gap-3">
+          <button
+            className="btn-secondary text-xs py-1.5 flex items-center gap-1.5"
+            onClick={checkStatus}
+            disabled={checking}
+          >
+            <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
+            {checking ? 'Checking…' : 'Test Connection'}
+          </button>
+          {status && (
+            <div className={`flex items-center gap-1.5 text-xs ${status.is_running ? 'text-green-400' : 'text-red-400'}`}>
+              {status.is_running ? <CheckCircle size={12} /> : <XCircle size={12} />}
+              {status.message}
+            </div>
+          )}
+        </div>
+
+        {/* Available Ollama models — click to set language model */}
+        {status?.models && status.models.length > 0 && (
+          <div>
+            <p className="text-xs text-slate-400 mb-1.5">Installed models (click to use as language model):</p>
+            <div className="flex flex-wrap gap-1.5">
+              {status.models.map((m) => {
+                const isVision = m.includes('vl') || m.includes('vision') || m.includes('llava') || m.includes('moondream');
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setLocal((p) => ({ ...p, ollama_model: m }))}
+                    className={`text-xs px-2 py-0.5 rounded-md font-mono transition-colors ${
+                      local.ollama_model === m
+                        ? 'bg-brand-700 text-brand-200'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    {m}
+                    {isVision && <span className="ml-1 opacity-60">👁</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Vision model */}
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+              <Camera size={14} />
+              Vision Analysis
+              <span className="text-xs font-normal text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded-full">
+                On by default
+              </span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Periodically captures your screen and uses a vision model to understand what you're truly working on
+            </p>
+          </div>
+          <Toggle
+            value={local.vision_enabled ?? true}
+            onChange={(v) => setLocal((p) => ({ ...p, vision_enabled: v }))}
+          />
+        </div>
+
+        {local.vision_enabled && (
+          <div className="space-y-4">
+            {/* Vision model selector — works for all providers */}
+            <div>
+              <label className="label">Vision Model</label>
+              {provider === 'ollama' ? (
+                <>
+                  <input
+                    className="input font-mono"
+                    value={local.vision_model ?? 'qwen3-vl:8b'}
+                    onChange={(e) => setLocal((p) => ({ ...p, vision_model: e.target.value }))}
+                    placeholder="qwen3-vl:8b"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Any Ollama vision model works: <code className="font-mono">qwen3-vl:8b</code> (installed) ·{' '}
+                    <code className="font-mono">llava:7b</code> · <code className="font-mono">moondream</code>
+                  </p>
+                  {/* Click-to-select from installed models */}
+                  {status?.models && status.models.filter(m =>
+                    m.includes('vl') || m.includes('vision') || m.includes('llava') || m.includes('moondream')
+                  ).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {status.models
+                        .filter(m => m.includes('vl') || m.includes('vision') || m.includes('llava') || m.includes('moondream'))
+                        .map((m) => (
+                          <button
+                            key={m}
+                            onClick={() => setLocal((p) => ({ ...p, vision_model: m }))}
+                            className={`text-xs px-2 py-0.5 rounded-md font-mono transition-colors ${
+                              local.vision_model === m
+                                ? 'bg-green-700 text-green-200'
+                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            }`}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <select
+                  className="input"
+                  value={local.vision_model ?? ''}
+                  onChange={(e) => setLocal((p) => ({ ...p, vision_model: e.target.value }))}
+                >
+                  {provider === 'claude' && (
+                    <>
+                      <option value="claude-sonnet-4-6">claude-sonnet-4-6 (recommended)</option>
+                      <option value="claude-opus-4-6">claude-opus-4-6</option>
+                      <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fastest)</option>
+                    </>
+                  )}
+                  {provider === 'openai' && (
+                    <>
+                      <option value="gpt-4o">gpt-4o (recommended)</option>
+                      <option value="gpt-4o-mini">gpt-4o-mini</option>
+                    </>
+                  )}
+                </select>
+              )}
+            </div>
+
+            {/* How it works note */}
+            <div className="p-3 bg-slate-800/40 rounded-lg text-xs text-slate-400 space-y-1">
+              <p className="text-slate-300 font-medium">How it works:</p>
+              <p>• Screenshots fire automatically whenever you switch apps, URLs, or files</p>
+              <p>• A baseline screenshot is also taken every 60 s to stay current</p>
+              <p>• The vision model describes what's on screen in plain text</p>
+              <p>• These descriptions are included in your AI coaching report</p>
+              <p>• <span className="text-slate-300">Screenshots are never stored</span> — only the text description</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end">
@@ -327,123 +700,6 @@ function RuleForm({
   );
 }
 
-// ─── LLM Settings ─────────────────────────────────────────────────────────────
-
-function LlmSettings() {
-  const { settings, setSettings } = useAppStore();
-  const [local, setLocal] = useState<Partial<Settings>>({});
-  const [llmStatus, setLlmStatus] = useState<{ is_running: boolean; models: string[] } | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (settings) setLocal(settings);
-    checkStatus();
-  }, [settings]);
-
-  async function checkStatus() {
-    setChecking(true);
-    const res = await window.api.checkLlmStatus();
-    if (res.success && res.data) setLlmStatus(res.data);
-    setChecking(false);
-  }
-
-  async function save() {
-    const res = await window.api.setSettings(local);
-    if (res.success && res.data) {
-      setSettings(res.data);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="card space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-            <Bot size={14} />
-            Ollama Status
-          </h3>
-          <button className="btn-secondary text-xs py-1" onClick={checkStatus} disabled={checking}>
-            {checking ? 'Checking…' : 'Check'}
-          </button>
-        </div>
-
-        {llmStatus && (
-          <div className={`flex items-center gap-2 text-sm ${llmStatus.is_running ? 'text-green-400' : 'text-red-400'}`}>
-            {llmStatus.is_running ? <CheckCircle size={14} /> : <XCircle size={14} />}
-            {llmStatus.is_running ? 'Ollama is running' : 'Ollama is not running'}
-          </div>
-        )}
-
-        {llmStatus?.models && llmStatus.models.length > 0 && (
-          <div>
-            <p className="text-xs text-slate-400 mb-1">Available models:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {llmStatus.models.map((m) => (
-                <span key={m} className="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded-md font-mono">
-                  {m}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div>
-          <label className="label">Ollama Endpoint</label>
-          <input
-            className="input"
-            value={local.ollama_endpoint ?? ''}
-            onChange={(e) => setLocal((p) => ({ ...p, ollama_endpoint: e.target.value }))}
-            placeholder="http://localhost:11434"
-          />
-        </div>
-
-        <div>
-          <label className="label">Model</label>
-          <input
-            className="input"
-            value={local.ollama_model ?? ''}
-            onChange={(e) => setLocal((p) => ({ ...p, ollama_model: e.target.value }))}
-            placeholder="llama3.1:8b"
-          />
-          <p className="text-xs text-slate-500 mt-1">
-            Recommended: <code className="font-mono">llama3.1:8b</code> or <code className="font-mono">phi3:mini</code>
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-300">Enable AI Summaries</p>
-            <p className="text-xs text-slate-500">Generate session summaries and coaching tips</p>
-          </div>
-          <Toggle
-            value={local.enable_llm ?? true}
-            onChange={(v) => setLocal((p) => ({ ...p, enable_llm: v }))}
-          />
-        </div>
-      </div>
-
-      <div className="card bg-slate-800/40 space-y-3">
-        <h3 className="text-sm font-medium text-slate-300">Setup Instructions</h3>
-        <ol className="space-y-2 text-xs text-slate-400 list-decimal list-inside">
-          <li>Install Ollama: <code className="font-mono text-slate-300">brew install ollama</code></li>
-          <li>Start Ollama: <code className="font-mono text-slate-300">ollama serve</code></li>
-          <li>Pull model: <code className="font-mono text-slate-300">ollama pull llama3.1:8b</code></li>
-          <li>Or use smaller: <code className="font-mono text-slate-300">ollama pull phi3:mini</code></li>
-        </ol>
-      </div>
-
-      <div className="flex justify-end">
-        <button className="btn-primary" onClick={save}>
-          {saved ? <><CheckCircle size={14} /> Saved</> : <><Save size={14} /> Save Settings</>}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Privacy Settings ──────────────────────────────────────────────────────────
 
 function PrivacySettings() {
@@ -457,11 +713,11 @@ function PrivacySettings() {
         <div className="space-y-3">
           {[
             { label: 'Local storage only', desc: 'All session data is stored in a local SQLite database on your Mac.' },
-            { label: 'No cloud sync', desc: 'Data never leaves your machine. No servers, no accounts.' },
+            { label: 'No cloud sync', desc: 'Data never leaves your machine unless you configure a cloud API key.' },
             { label: 'No keystrokes', desc: 'Focus Session never captures what you type.' },
-            { label: 'No screenshots', desc: 'No screen captures are taken at any point.' },
             { label: 'Minimal data capture', desc: 'Only app names, window titles, and browser domains are recorded — not content.' },
-            { label: 'Local LLM via Ollama', desc: 'AI summaries run entirely on your device. No data sent to OpenAI or any cloud API.' },
+            { label: 'Vision opt-in only', desc: 'Screenshots are only taken if you explicitly enable Vision Analysis. Images are analyzed then discarded — only the text description is stored.' },
+            { label: 'API keys stay local', desc: 'Claude/OpenAI API keys are stored only in the local SQLite database. Requests go directly from your machine to the provider.' },
             { label: 'No telemetry', desc: 'Zero analytics, crash reporting, or usage data is collected.' },
           ].map((item) => (
             <div key={item.label} className="flex items-start gap-3">
@@ -483,6 +739,7 @@ function PrivacySettings() {
           <li>• Browser domain if enabled (e.g. "github.com")</li>
           <li>• System idle time (seconds since last input)</li>
           <li>• Timestamps of each activity change</li>
+          <li>• Screen description text (only if Vision enabled)</li>
         </ul>
       </div>
 
@@ -507,7 +764,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
       onClick={() => onChange(!value)}
       className={`relative w-11 h-6 rounded-full transition-colors ${
         value ? 'bg-brand-600' : 'bg-slate-600'
-      } no-drag`}
+      } no-drag flex-shrink-0`}
     >
       <div
         className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${

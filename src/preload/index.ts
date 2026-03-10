@@ -6,6 +6,12 @@ import type {
   Settings,
   CurrentActivity,
   IpcResponse,
+  DayPlan,
+  DayStats,
+  WeekStats,
+  StreakInfo,
+  FlowPeriod,
+  SpotifyTrack,
 } from '../shared/types';
 
 // ─── Type-safe API exposed to the renderer via contextBridge ──────────────────
@@ -27,9 +33,19 @@ const api = {
   listSessions: () =>
     ipcRenderer.invoke('sessions:list') as Promise<IpcResponse<Session[]>>,
 
+  toggleSessionExcluded: (session_id: string, excluded: boolean) =>
+    ipcRenderer.invoke('session:toggle-excluded', { session_id, excluded }) as Promise<IpcResponse<Session>>,
+
   // Reports
-  getSessionReport: (session_id: string) =>
-    ipcRenderer.invoke('session:report', { session_id }) as Promise<IpcResponse<SessionReport>>,
+  getSessionReport: (session_id: string, force_refresh?: boolean) =>
+    ipcRenderer.invoke('session:report', { session_id, force_refresh }) as Promise<IpcResponse<SessionReport>>,
+
+  getSessionFlowPeriods: (session_id: string) =>
+    ipcRenderer.invoke('session:flow-periods', { session_id }) as Promise<IpcResponse<{ periods: FlowPeriod[]; flow_seconds: number }>>,
+
+  // Vision snapshot (on-demand during active session)
+  captureVisionSnapshot: (session_id: string) =>
+    ipcRenderer.invoke('session:vision-snapshot', { session_id }) as Promise<IpcResponse<string>>,
 
   // Live activity
   getCurrentActivity: () =>
@@ -52,20 +68,64 @@ const api = {
   deleteClassification: (id: number) =>
     ipcRenderer.invoke('classifications:delete', { id }) as Promise<IpcResponse<boolean>>,
 
-  // LLM / Ollama
+  // AI / LLM
   checkLlmStatus: () =>
     ipcRenderer.invoke('llm:status') as Promise<IpcResponse<{
       is_running: boolean;
+      is_configured: boolean;
+      provider: string;
       models: string[];
       endpoint: string;
+      message: string;
     }>>,
 
-  // Event listeners (push from main to renderer)
+  // Day planning
+  getDayPlan: (date: string) =>
+    ipcRenderer.invoke('dayplan:get', { date }) as Promise<IpcResponse<DayPlan | null>>,
+
+  setDayPlan: (plan: Omit<DayPlan, 'created_at' | 'updated_at'>) =>
+    ipcRenderer.invoke('dayplan:set', plan) as Promise<IpcResponse<DayPlan>>,
+
+  // Stats
+  getDayStats: (date: string) =>
+    ipcRenderer.invoke('stats:day', { date }) as Promise<IpcResponse<DayStats>>,
+
+  getWeekStats: (end_date: string) =>
+    ipcRenderer.invoke('stats:week', { end_date }) as Promise<IpcResponse<WeekStats>>,
+
+  getStreak: () =>
+    ipcRenderer.invoke('stats:streak') as Promise<IpcResponse<StreakInfo>>,
+
+  getTopApps: (days?: number) =>
+    ipcRenderer.invoke('stats:top-apps', { days }) as Promise<IpcResponse<{ name: string; seconds: number }[]>>,
+
+  getTopDistractions: (days?: number) =>
+    ipcRenderer.invoke('stats:top-distractions', { days }) as Promise<IpcResponse<{ name: string; seconds: number }[]>>,
+
+  // Event listeners (push from main → renderer)
   onActivityUpdate: (callback: (activity: CurrentActivity) => void) => {
     const listener = (_: Electron.IpcRendererEvent, data: CurrentActivity) => callback(data);
     ipcRenderer.on('activity:update', listener);
-    // Return cleanup function
     return () => ipcRenderer.removeListener('activity:update', listener);
+  },
+
+  onSpotifyUpdate: (callback: (track: SpotifyTrack | null) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, data: SpotifyTrack | null) => callback(data);
+    ipcRenderer.on('spotify:update', listener);
+    return () => ipcRenderer.removeListener('spotify:update', listener);
+  },
+
+  // Tray → renderer requests
+  onTrayEndSession: (callback: (sessionId: string) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, sessionId: string) => callback(sessionId);
+    ipcRenderer.on('tray:request-end-session', listener);
+    return () => ipcRenderer.removeListener('tray:request-end-session', listener);
+  },
+
+  onTrayQuickStart: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('tray:request-quick-start', listener);
+    return () => ipcRenderer.removeListener('tray:request-quick-start', listener);
   },
 };
 

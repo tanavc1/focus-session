@@ -39,12 +39,17 @@ export function groupEventsIntoBlocks(
     const current = events[i];
     const prev = events[i - 1];
 
-    // New block if app, domain, or idle state changed
+    // New block if app, domain, idle state, or window title changed
     const sameApp = current.app_name === prev.app_name;
     const sameDomain = current.browser_domain === prev.browser_domain;
     const sameIdle = current.is_idle === prev.is_idle;
+    // Split on title change when there's no domain (e.g. editor switching files)
+    // Keep same block when domain is present (browser title changes too often)
+    const sameTitle =
+      !!current.browser_domain || // browser: don't split on title (split on domain instead)
+      current.window_title === prev.window_title;
 
-    if (sameApp && sameDomain && sameIdle) {
+    if (sameApp && sameDomain && sameIdle && sameTitle) {
       blockEnd = current;
     } else {
       // Commit the current block

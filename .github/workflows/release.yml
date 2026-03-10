@@ -1,0 +1,67 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & package
+        run: npm run make
+        env:
+          APP_VERSION: ${{ github.run_number > 1 && format('1.0.{0}', github.run_number) || '1.0.0' }}
+
+      - name: Find DMG
+        id: find_dmg
+        run: |
+          DMG=$(find out/make -name "*.dmg" | head -1)
+          echo "path=$DMG" >> $GITHUB_OUTPUT
+          echo "name=$(basename $DMG)" >> $GITHUB_OUTPUT
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Focus-macOS
+          path: ${{ steps.find_dmg.outputs.path }}
+          retention-days: 30
+
+      - name: Update rolling latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Focus — Latest Build"
+          prerelease: false
+          make_latest: true
+          body: |
+            ## Download Focus
+
+            **[⬇ Download Focus.dmg](${{ steps.find_dmg.outputs.name }})** — macOS 12+
+
+            ---
+
+            **First time installing?**
+            1. Open the `.dmg` and drag **Focus** to your Applications folder
+            2. Right-click Focus in Applications → **Open** (required once for unsigned apps)
+            3. Grant **Accessibility** access when prompted (System Settings → Privacy & Security → Accessibility)
+
+            ---
+            Built from commit ${{ github.sha }} · ${{ github.event.head_commit.message }}
+          files: ${{ steps.find_dmg.outputs.path }}

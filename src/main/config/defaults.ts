@@ -2,13 +2,34 @@ import type { AppClassification, Settings } from '../../shared/types';
 
 // Default application settings
 export const DEFAULT_SETTINGS: Settings = {
-  ollama_endpoint: 'http://localhost:11434',
-  ollama_model: 'llama3.1:8b',
-  tracking_interval_ms: 3000, // poll every 3 seconds
-  idle_threshold_seconds: 120, // 2 minutes idle = idle state
-  theme: 'system',
+  // Tracking
+  tracking_interval_ms: 3000,     // poll every 3 seconds
+  idle_threshold_seconds: 120,    // 2 minutes idle = idle state
   enable_browser_tracking: true,
+
+  // Ollama (local)
+  ollama_endpoint: 'http://localhost:11434',
+  ollama_model: 'phi4-mini:latest',
+
+  // AI provider
+  ai_provider: 'ollama',
+  claude_api_key: '',
+  openai_api_key: '',
+  language_model: 'claude-sonnet-4-6', // default for cloud providers
   enable_llm: true,
+
+  // Vision (Ollama-based by default — free and local)
+  // Screenshots are taken automatically: on every context change + every 60s baseline.
+  vision_enabled: true,
+  vision_model: 'qwen3-vl:8b',    // installed Ollama vision model
+
+  // Notifications
+  enable_focus_notifications: true,
+
+  onboarding_completed: false,
+
+  // Appearance
+  theme: 'system',
 };
 
 // ─── Default classification rules ─────────────────────────────────────────────

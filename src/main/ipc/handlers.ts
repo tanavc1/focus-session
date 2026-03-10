@@ -1,4 +1,6 @@
 import { ipcMain } from 'electron';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 import {
   createSession,
@@ -14,18 +16,27 @@ import {
   getAllClassifications,
   upsertClassification,
   deleteClassification,
+  setSessionExcluded,
+  setCachedReport,
+  getVisionSnapshots,
+  addVisionSnapshot,
+  getDayPlan,
+  upsertDayPlan,
+  getDayStats,
+  getWeekStats,
+  getStreakInfo,
+  getTopAppsAllTime,
+  getTopDistractionsAllTime,
+  computeFlowPeriods,
 } from '../database/db';
-import { startTracking, stopTracking, getCurrentActivity } from '../tracking/activityTracker';
+import { startTracking, stopTracking, getCurrentActivity, invalidateSettingsCache } from '../tracking/activityTracker';
+import { setTraySession } from '../tray';
 import { groupEventsIntoBlocks, computeSessionReport } from '../analytics/sessionAnalyzer';
-import {
-  checkOllamaStatus,
-  listOllamaModels,
-  generate,
-  buildSummaryPrompt,
-  parseLlmResponse,
-} from '../llm/ollamaClient';
+import { generateSessionSummary, analyzeScreenshot, checkAiStatus } from '../llm/aiClient';
 import { invalidateClassificationCache } from '../analytics/distractionClassifier';
-import type { IpcResponse, Session, SessionReport } from '../../shared/types';
+import type { IpcResponse, SessionReport, DayPlan } from '../../shared/types';
+
+const execAsync = promisify(exec);
 
 // Helper to wrap handler responses
 function ok<T>(data: T): IpcResponse<T> {
@@ -35,12 +46,27 @@ function err(error: string): IpcResponse<never> {
   return { success: false, error };
 }
 
+// ─── Screenshot helper ────────────────────────────────────────────────────────
+
+async function takeScreenshot(): Promise<string | null> {
+  try {
+    const tmpPath = `/tmp/focus-snap-${Date.now()}.png`;
+    // -x = no sound, -t png, capture main display
+    await execAsync(`screencapture -x -t png -m "${tmpPath}"`, { timeout: 5000 });
+    const { stdout } = await execAsync(`base64 "${tmpPath}"`, { timeout: 3000 });
+    await execAsync(`rm "${tmpPath}"`);
+    return stdout.trim();
+  } catch (e) {
+    console.warn('[Screenshot] Failed to capture:', e);
+    return null;
+  }
+}
+
 export function registerIpcHandlers(): void {
   // ─── Session handlers ──────────────────────────────────────────────────────
 
   ipcMain.handle('session:start', async (_event, args: { title: string; goal: string; target_duration?: number }) => {
     try {
-      // End any existing active session first
       const existing = getActiveSession();
       if (existing) {
         endSession(existing.id);
@@ -50,6 +76,7 @@ export function registerIpcHandlers(): void {
       const id = uuidv4();
       const session = createSession(id, args.title, args.goal, args.target_duration);
       startTracking(id);
+      setTraySession(session);
       return ok(session);
     } catch (e) {
       console.error('[IPC] session:start error:', e);
@@ -71,6 +98,23 @@ export function registerIpcHandlers(): void {
       const blocks = groupEventsIntoBlocks(events, args.session_id, session.goal);
       upsertActivityBlocks(blocks);
 
+      // Vision snapshot at session end (works with Ollama or cloud providers)
+      const settings = getAllSettings();
+      if (settings.vision_enabled && settings.vision_model) {
+        try {
+          const screenshot = await takeScreenshot();
+          if (screenshot) {
+            const description = await analyzeScreenshot(settings, screenshot);
+            if (description) {
+              addVisionSnapshot(args.session_id, `[Session end] ${description}`);
+            }
+          }
+        } catch (visionErr) {
+          console.warn('[IPC] Vision snapshot at session end failed (non-fatal):', visionErr);
+        }
+      }
+
+      setTraySession(null);
       return ok(updatedSession);
     } catch (e) {
       console.error('[IPC] session:end error:', e);
@@ -105,36 +149,50 @@ export function registerIpcHandlers(): void {
     }
   });
 
+  ipcMain.handle('session:toggle-excluded', async (_event, args: { session_id: string; excluded: boolean }) => {
+    try {
+      setSessionExcluded(args.session_id, args.excluded);
+      const session = getSession(args.session_id);
+      return ok(session);
+    } catch (e) {
+      return err(String(e));
+    }
+  });
+
   // ─── Report handler ────────────────────────────────────────────────────────
 
-  ipcMain.handle('session:report', async (_event, args: { session_id: string }) => {
+  ipcMain.handle('session:report', async (_event, args: { session_id: string; force_refresh?: boolean }) => {
     try {
       const session = getSession(args.session_id);
       if (!session) return err('Session not found');
 
+      // Return cached report if available (and not forcing refresh)
+      if (!args.force_refresh && session.report_json) {
+        try {
+          const cached = JSON.parse(session.report_json);
+          const report: SessionReport = { ...cached, session };
+          return ok(report);
+        } catch {
+          // Corrupted cache — fall through to regenerate
+        }
+      }
+
       const blocks = getBlocksBySession(args.session_id);
       const reportBase = computeSessionReport(session, blocks);
-
-      // Try LLM enrichment if enabled
       const settings = getAllSettings();
+
       let llm_summary: string | undefined;
       let coaching_suggestions: string[] | undefined;
+      let ai_provider_used: string | undefined;
+      const vision_snapshots = getVisionSnapshots(args.session_id);
 
       if (settings.enable_llm) {
         try {
-          const isUp = await checkOllamaStatus(settings.ollama_endpoint);
-          if (isUp) {
-            const prompt = buildSummaryPrompt(reportBase);
-            const response = await generate(
-              settings.ollama_endpoint,
-              settings.ollama_model,
-              prompt
-            );
-            if (response) {
-              const parsed = parseLlmResponse(response);
-              llm_summary = parsed.summary;
-              coaching_suggestions = parsed.suggestions;
-            }
+          const result = await generateSessionSummary(settings, reportBase, vision_snapshots.length > 0 ? vision_snapshots : undefined);
+          if (result) {
+            llm_summary = result.summary;
+            coaching_suggestions = result.suggestions;
+            ai_provider_used = result.provider;
           }
         } catch (llmErr) {
           console.warn('[IPC] LLM enrichment failed (non-fatal):', llmErr);
@@ -145,11 +203,43 @@ export function registerIpcHandlers(): void {
         ...reportBase,
         llm_summary,
         coaching_suggestions,
+        vision_snapshots: vision_snapshots.length > 0 ? vision_snapshots : undefined,
+        ai_provider_used,
       };
+
+      // Cache the report (store without the session field to avoid duplication)
+      const { session: _s, ...reportWithoutSession } = report;
+      try {
+        setCachedReport(args.session_id, JSON.stringify(reportWithoutSession));
+      } catch (cacheErr) {
+        console.warn('[IPC] Failed to cache report (non-fatal):', cacheErr);
+      }
 
       return ok(report);
     } catch (e) {
       console.error('[IPC] session:report error:', e);
+      return err(String(e));
+    }
+  });
+
+  // ─── Vision snapshot (on-demand) ───────────────────────────────────────────
+
+  ipcMain.handle('session:vision-snapshot', async (_event, args: { session_id: string }) => {
+    try {
+      const settings = getAllSettings();
+      if (!settings.vision_enabled || !settings.vision_model) {
+        return err('Vision not enabled or no vision model configured');
+      }
+      const screenshot = await takeScreenshot();
+      if (!screenshot) return err('Failed to capture screenshot');
+
+      const description = await analyzeScreenshot(settings, screenshot);
+      if (!description) return err('Vision model returned no description');
+
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      addVisionSnapshot(args.session_id, `[${timestamp}] ${description}`);
+      return ok(description);
+    } catch (e) {
       return err(String(e));
     }
   });
@@ -181,6 +271,7 @@ export function registerIpcHandlers(): void {
       for (const [key, value] of Object.entries(args)) {
         setSetting(key, value);
       }
+      invalidateSettingsCache();
       return ok(getAllSettings());
     } catch (e) {
       return err(String(e));
@@ -217,26 +308,87 @@ export function registerIpcHandlers(): void {
     }
   });
 
-  // ─── LLM handlers ─────────────────────────────────────────────────────────
+  // ─── Day Plan handlers ─────────────────────────────────────────────────────
+
+  ipcMain.handle('dayplan:get', async (_event, args: { date: string }) => {
+    try {
+      return ok(getDayPlan(args.date));
+    } catch (e) { return err(String(e)); }
+  });
+
+  ipcMain.handle('dayplan:set', async (_event, args: Omit<DayPlan, 'created_at' | 'updated_at'>) => {
+    try {
+      const plan = upsertDayPlan({ ...args, id: args.id || uuidv4() });
+      return ok(plan);
+    } catch (e) { return err(String(e)); }
+  });
+
+  // ─── Stats handlers ────────────────────────────────────────────────────────
+
+  ipcMain.handle('stats:day', async (_event, args: { date: string }) => {
+    try {
+      return ok(getDayStats(args.date));
+    } catch (e) { return err(String(e)); }
+  });
+
+  ipcMain.handle('stats:week', async (_event, args: { end_date: string }) => {
+    try {
+      return ok(getWeekStats(args.end_date));
+    } catch (e) { return err(String(e)); }
+  });
+
+  ipcMain.handle('stats:streak', async () => {
+    try {
+      return ok(getStreakInfo());
+    } catch (e) { return err(String(e)); }
+  });
+
+  ipcMain.handle('stats:top-apps', async (_event, args: { days?: number }) => {
+    try {
+      return ok(getTopAppsAllTime(args.days ?? 30));
+    } catch (e) { return err(String(e)); }
+  });
+
+  ipcMain.handle('stats:top-distractions', async (_event, args: { days?: number }) => {
+    try {
+      return ok(getTopDistractionsAllTime(args.days ?? 30));
+    } catch (e) { return err(String(e)); }
+  });
+
+  // ─── Flow periods for a session ────────────────────────────────────────────
+
+  ipcMain.handle('session:flow-periods', async (_event, args: { session_id: string }) => {
+    try {
+      const blocks = getBlocksBySession(args.session_id);
+      const periods = computeFlowPeriods(blocks);
+      const flowSeconds = periods.reduce((a, p) => a + p.duration_seconds, 0);
+      return ok({ periods, flow_seconds: flowSeconds });
+    } catch (e) { return err(String(e)); }
+  });
+
+  // ─── AI/LLM status handler ────────────────────────────────────────────────
 
   ipcMain.handle('llm:status', async () => {
     try {
       const settings = getAllSettings();
-      const isUp = await checkOllamaStatus(settings.ollama_endpoint);
-      const models = isUp ? await listOllamaModels(settings.ollama_endpoint) : [];
-      return ok({ is_running: isUp, models, endpoint: settings.ollama_endpoint });
+      const status = await checkAiStatus(settings);
+      return ok({
+        is_running: status.is_running,
+        is_configured: status.is_configured,
+        provider: status.provider,
+        models: status.models,
+        endpoint: settings.ollama_endpoint,
+        message: status.message,
+      });
     } catch (e) {
-      return ok({ is_running: false, models: [], endpoint: '' });
-    }
-  });
-
-  ipcMain.handle('llm:generate', async (_event, args: { prompt: string }) => {
-    try {
-      const settings = getAllSettings();
-      const response = await generate(settings.ollama_endpoint, settings.ollama_model, args.prompt);
-      return ok(response);
-    } catch (e) {
-      return err(String(e));
+      return ok({
+        is_running: false,
+        is_configured: false,
+        provider: 'ollama',
+        models: [],
+        endpoint: '',
+        message: String(e),
+      });
     }
   });
 }

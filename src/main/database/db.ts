@@ -7,6 +7,12 @@ import type {
   ActivityBlock,
   AppClassification,
   Settings,
+  DayPlan,
+  DayGoal,
+  DayStats,
+  WeekStats,
+  StreakInfo,
+  FlowPeriod,
 } from '../../shared/types';
 import { DEFAULT_SETTINGS, DEFAULT_CLASSIFICATIONS } from '../config/defaults';
 
@@ -31,6 +37,18 @@ export function getDb(): Database.Database {
 
 function initSchema(db: Database.Database): void {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS day_plans (
+      id           TEXT    PRIMARY KEY,
+      date         TEXT    NOT NULL UNIQUE,
+      goals        TEXT    NOT NULL DEFAULT '[]',
+      target_focus_minutes INTEGER NOT NULL DEFAULT 240,
+      morning_intention TEXT,
+      created_at   INTEGER NOT NULL,
+      updated_at   INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_day_plans_date ON day_plans(date);
+
     CREATE TABLE IF NOT EXISTS sessions (
       id           TEXT    PRIMARY KEY,
       title        TEXT    NOT NULL,
@@ -90,7 +108,27 @@ function initSchema(db: Database.Database): void {
     );
   `);
 
+  runMigrations(db);
   seedDefaultData(db);
+}
+
+// ─── Migrations ───────────────────────────────────────────────────────────────
+
+function runMigrations(db: Database.Database): void {
+  // Add excluded column (migration for existing DBs)
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0");
+  } catch { /* already exists */ }
+
+  // Add report_json column for caching (migration for existing DBs)
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN report_json TEXT");
+  } catch { /* already exists */ }
+
+  // Add vision_snapshots column for storing vision descriptions
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN vision_snapshots TEXT");
+  } catch { /* already exists */ }
 }
 
 function seedDefaultData(db: Database.Database): void {
@@ -165,6 +203,37 @@ export function listSessions(limit = 50): Session[] {
   return db.prepare(
     'SELECT * FROM sessions WHERE status != ? ORDER BY started_at DESC LIMIT ?'
   ).all('active', limit) as Session[];
+}
+
+export function setSessionExcluded(id: string, excluded: boolean): void {
+  const db = getDb();
+  db.prepare('UPDATE sessions SET excluded = ? WHERE id = ?').run(excluded ? 1 : 0, id);
+}
+
+export function getCachedReport(id: string): string | null {
+  const db = getDb();
+  const row = db.prepare('SELECT report_json FROM sessions WHERE id = ?').get(id) as { report_json: string | null } | null;
+  return row?.report_json ?? null;
+}
+
+export function setCachedReport(id: string, reportJson: string): void {
+  const db = getDb();
+  db.prepare('UPDATE sessions SET report_json = ? WHERE id = ?').run(reportJson, id);
+}
+
+export function getVisionSnapshots(id: string): string[] {
+  const db = getDb();
+  const row = db.prepare('SELECT vision_snapshots FROM sessions WHERE id = ?').get(id) as { vision_snapshots: string | null } | null;
+  try {
+    return row?.vision_snapshots ? JSON.parse(row.vision_snapshots) : [];
+  } catch { return []; }
+}
+
+export function addVisionSnapshot(id: string, description: string): void {
+  const db = getDb();
+  const existing = getVisionSnapshots(id);
+  existing.push(description);
+  db.prepare('UPDATE sessions SET vision_snapshots = ? WHERE id = ?').run(JSON.stringify(existing), id);
 }
 
 // ─── Activity Event CRUD ──────────────────────────────────────────────────────
@@ -284,4 +353,272 @@ export function closeDb(): void {
     _db.close();
     _db = null;
   }
+}
+
+// ─── Day Plan CRUD ────────────────────────────────────────────────────────────
+
+export function getDayPlan(date: string): DayPlan | null {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM day_plans WHERE date = ?').get(date) as {
+    id: string; date: string; goals: string; target_focus_minutes: number;
+    morning_intention: string | null; created_at: number; updated_at: number;
+  } | null;
+  if (!row) return null;
+  return {
+    ...row,
+    goals: JSON.parse(row.goals) as DayGoal[],
+    morning_intention: row.morning_intention ?? undefined,
+  };
+}
+
+export function upsertDayPlan(plan: Omit<DayPlan, 'created_at' | 'updated_at'>): DayPlan {
+  const db = getDb();
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO day_plans (id, date, goals, target_focus_minutes, morning_intention, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(date) DO UPDATE SET
+      goals = excluded.goals,
+      target_focus_minutes = excluded.target_focus_minutes,
+      morning_intention = excluded.morning_intention,
+      updated_at = excluded.updated_at
+  `).run(
+    plan.id, plan.date, JSON.stringify(plan.goals),
+    plan.target_focus_minutes, plan.morning_intention ?? null, now, now,
+  );
+  return getDayPlan(plan.date)!;
+}
+
+// ─── Day Stats ────────────────────────────────────────────────────────────────
+
+function dateToRange(dateStr: string): { start: number; end: number } {
+  // Parse YYYY-MM-DD and return epoch ms range for that local day
+  const d = new Date(dateStr + 'T00:00:00');
+  const start = d.getTime();
+  const end = start + 24 * 60 * 60 * 1000;
+  return { start, end };
+}
+
+function computeFlowSecondsFromBlocks(blocks: ActivityBlock[]): number {
+  // A flow period: consecutive productive blocks (idle < 3 min allowed), >= 25 min total focus
+  let flowTotal = 0;
+  let flowFocus = 0;
+  let inFlow = false;
+
+  for (const b of blocks) {
+    if (b.classification === 'productive') {
+      flowFocus += b.duration_seconds;
+      if (!inFlow && flowFocus >= 25 * 60) inFlow = true;
+    } else if (b.classification === 'idle' && b.duration_seconds <= 180) {
+      // Short idle doesn't break flow
+    } else {
+      if (inFlow) flowTotal += flowFocus;
+      flowFocus = 0;
+      inFlow = false;
+    }
+  }
+  if (inFlow) flowTotal += flowFocus;
+  return flowTotal;
+}
+
+export function getDayStats(dateStr: string): DayStats {
+  const db = getDb();
+  const { start, end } = dateToRange(dateStr);
+
+  const sessions = db.prepare(`
+    SELECT * FROM sessions
+    WHERE started_at >= ? AND started_at < ?
+      AND status = 'completed' AND excluded = 0
+    ORDER BY started_at ASC
+  `).all(start, end) as Session[];
+
+  let focusSeconds = 0;
+  let distractedSeconds = 0;
+  let idleSeconds = 0;
+  let flowSeconds = 0;
+
+  for (const session of sessions) {
+    const blocks = db.prepare(
+      'SELECT * FROM activity_blocks WHERE session_id = ? ORDER BY started_at ASC'
+    ).all(session.id) as ActivityBlock[];
+
+    for (const b of blocks) {
+      if (b.classification === 'productive')  focusSeconds      += b.duration_seconds;
+      if (b.classification === 'distracting') distractedSeconds += b.duration_seconds;
+      if (b.classification === 'idle')        idleSeconds       += b.duration_seconds;
+    }
+    flowSeconds += computeFlowSecondsFromBlocks(blocks);
+  }
+
+  const active = focusSeconds + distractedSeconds;
+  const focusScore = active > 0
+    ? Math.round(Math.max(0, Math.min(100, ((focusSeconds - distractedSeconds * 0.5) / active) * 100)))
+    : 0;
+
+  const plan = getDayPlan(dateStr);
+
+  return {
+    date: dateStr,
+    focus_seconds: focusSeconds,
+    distracted_seconds: distractedSeconds,
+    idle_seconds: idleSeconds,
+    session_count: sessions.length,
+    focus_score: focusScore,
+    flow_seconds: flowSeconds,
+    target_focus_minutes: plan?.target_focus_minutes ?? 240,
+    sessions,
+  };
+}
+
+export function getWeekStats(endDateStr: string): WeekStats {
+  const db = getDb();
+  // Build 7 days ending on endDateStr
+  const days: DayStats[] = [];
+  const endDate = new Date(endDateStr + 'T00:00:00');
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(endDate);
+    d.setDate(d.getDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    days.push(getDayStats(iso));
+  }
+
+  // Previous week for comparison
+  const prevEnd = new Date(endDate);
+  prevEnd.setDate(prevEnd.getDate() - 7);
+  let prevFocus = 0;
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(prevEnd);
+    d.setDate(d.getDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    const s = getDayStats(iso);
+    prevFocus += s.focus_seconds;
+  }
+
+  const activeDays = days.filter((d) => d.session_count > 0);
+  return {
+    days,
+    total_focus_seconds: days.reduce((a, d) => a + d.focus_seconds, 0),
+    avg_focus_score: activeDays.length > 0
+      ? Math.round(activeDays.reduce((a, d) => a + d.focus_score, 0) / activeDays.length)
+      : 0,
+    total_sessions: days.reduce((a, d) => a + d.session_count, 0),
+    prev_week_focus_seconds: prevFocus,
+  };
+
+  void db; // sqlite ref kept alive
+}
+
+export function getStreakInfo(): StreakInfo {
+  const db = getDb();
+  // Look at last 90 days of session data
+  const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
+
+  // Get distinct days that had any focused sessions
+  const rows = db.prepare(`
+    SELECT DISTINCT date(s.started_at/1000, 'unixepoch', 'localtime') as day
+    FROM sessions s
+    JOIN activity_blocks ab ON ab.session_id = s.id
+    WHERE s.started_at > ? AND s.status = 'completed' AND s.excluded = 0
+      AND ab.classification = 'productive'
+    GROUP BY day
+    HAVING SUM(ab.duration_seconds) >= 1800
+    ORDER BY day DESC
+  `).all(ninetyDaysAgo) as { day: string }[];
+
+  if (rows.length === 0) return { current_streak: 0, longest_streak: 0, total_focused_days: 0 };
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Build set of active dates
+  const activeDates = new Set(rows.map((r) => r.day));
+
+  // Compute current streak
+  let current = 0;
+  const cursor = new Date(today + 'T12:00:00');
+  while (true) {
+    const iso = cursor.toISOString().slice(0, 10);
+    if (activeDates.has(iso)) {
+      current++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  // Compute longest streak
+  const sorted = [...activeDates].sort();
+  let longest = 0;
+  let run = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(sorted[i - 1] + 'T12:00:00');
+    const curr = new Date(sorted[i]   + 'T12:00:00');
+    const diff = Math.round((curr.getTime() - prev.getTime()) / 86_400_000);
+    if (diff === 1) {
+      run++;
+      longest = Math.max(longest, run);
+    } else {
+      run = 1;
+    }
+  }
+  longest = Math.max(longest, current, 1);
+
+  return { current_streak: current, longest_streak: longest, total_focused_days: activeDates.size };
+}
+
+// ─── Flow periods computation (exported for report use) ──────────────────────
+
+export function computeFlowPeriods(blocks: ActivityBlock[]): FlowPeriod[] {
+  const periods: FlowPeriod[] = [];
+  let flowStart: number | null = null;
+  let flowFocus = 0;
+
+  for (const b of blocks) {
+    if (b.classification === 'productive') {
+      if (flowStart === null) flowStart = b.started_at;
+      flowFocus += b.duration_seconds;
+    } else if (b.classification === 'idle' && b.duration_seconds <= 180) {
+      // short idle doesn't break flow
+    } else {
+      if (flowStart !== null && flowFocus >= 25 * 60) {
+        periods.push({ started_at: flowStart, duration_seconds: flowFocus });
+      }
+      flowStart = null;
+      flowFocus = 0;
+    }
+  }
+  if (flowStart !== null && flowFocus >= 25 * 60) {
+    periods.push({ started_at: flowStart, duration_seconds: flowFocus });
+  }
+  return periods;
+}
+
+// ─── Productivity insights for Journey ────────────────────────────────────────
+
+export function getTopAppsAllTime(days = 30): { name: string; seconds: number }[] {
+  const db = getDb();
+  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+  return db.prepare(`
+    SELECT app_name as name, SUM(duration_seconds) as seconds
+    FROM activity_blocks ab
+    JOIN sessions s ON s.id = ab.session_id
+    WHERE ab.classification = 'productive'
+      AND s.started_at > ? AND s.status = 'completed' AND s.excluded = 0
+      AND app_name IS NOT NULL
+    GROUP BY app_name ORDER BY seconds DESC LIMIT 8
+  `).all(since) as { name: string; seconds: number }[];
+}
+
+export function getTopDistractionsAllTime(days = 30): { name: string; seconds: number }[] {
+  const db = getDb();
+  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+  return db.prepare(`
+    SELECT COALESCE(browser_domain, app_name) as name, SUM(duration_seconds) as seconds
+    FROM activity_blocks ab
+    JOIN sessions s ON s.id = ab.session_id
+    WHERE ab.classification = 'distracting'
+      AND s.started_at > ? AND s.status = 'completed' AND s.excluded = 0
+      AND COALESCE(browser_domain, app_name) IS NOT NULL
+    GROUP BY name ORDER BY seconds DESC LIMIT 8
+  `).all(since) as { name: string; seconds: number }[];
 }

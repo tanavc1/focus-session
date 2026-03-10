@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
 import { useAppStore } from '../store/useStore';
 import type { CurrentActivity } from '../../shared/types';
 
@@ -43,6 +44,17 @@ export function useSessionControl() {
     [navigate, setActiveSession]
   );
 
+  /**
+   * Quick-start: begin tracking immediately with an auto-generated title.
+   * No setup required — just starts recording everything.
+   */
+  const quickStartSession = useCallback(async () => {
+    const now = new Date();
+    const title = `Quick Session · ${format(now, 'MMM d, h:mm a')}`;
+    const goal = 'Open session — capturing all activity';
+    return startSession(title, goal);
+  }, [startSession]);
+
   const endSession = useCallback(
     async (session_id: string) => {
       const res = await window.api.endSession(session_id);
@@ -57,7 +69,7 @@ export function useSessionControl() {
     [navigate, setActiveSession]
   );
 
-  return { startSession, endSession };
+  return { startSession, quickStartSession, endSession };
 }
 
 /**
