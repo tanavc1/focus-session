@@ -171,6 +171,7 @@ export interface Settings {
 
   // Notifications
   enable_focus_notifications: boolean;
+  daily_focus_target_minutes: number;
 
   // Onboarding
   onboarding_completed: boolean;

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Clock, Zap, AlertTriangle, Bot, ChevronLeft, Lightbulb,
   EyeOff, Eye, RefreshCw, Flame, TrendingUp, Target, Camera,
-  Monitor, CheckCircle, ChevronRight, BarChart2,
+  Monitor, CheckCircle, ChevronRight, BarChart2, Sparkles, Play,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import ActivityTimeline from '../components/ActivityTimeline';
@@ -334,6 +334,66 @@ export default function ReportPage() {
         </div>
       )}
 
+      {/* Key Insights */}
+      {(() => {
+        const insights: React.ReactNode[] = [];
+        if ((report.longest_focus_streak_seconds ?? 0) >= 1500) {
+          insights.push(
+            <div key="streak" className="flex items-start gap-2.5 p-2.5 bg-amber-950/20 border border-amber-800/20 rounded-lg">
+              <span className="text-lg leading-none flex-shrink-0">🔥</span>
+              <span className="text-sm text-slate-300 leading-snug">
+                Your longest unbroken focus run was <strong className="text-amber-300">{fmt(report.longest_focus_streak_seconds ?? 0)}</strong>
+              </span>
+            </div>
+          );
+        }
+        if ((report.context_switch_count ?? 0) > 0) {
+          const switches = report.context_switch_count ?? 0;
+          const switchColor = switches <= 5 ? 'text-green-400' : switches <= 15 ? 'text-amber-400' : 'text-red-400';
+          insights.push(
+            <div key="switches" className="flex items-start gap-2.5 p-2.5 bg-slate-800/50 rounded-lg">
+              <span className="text-lg leading-none flex-shrink-0">🔀</span>
+              <span className="text-sm text-slate-300 leading-snug">
+                You switched context <strong className={switchColor}>{switches} time{switches !== 1 ? 's' : ''}</strong>
+                {switches <= 5 ? ' — great focus!' : switches <= 15 ? ' — moderate fragmentation' : ' — high fragmentation, try batching tasks'}
+              </span>
+            </div>
+          );
+        }
+        if (report.diversion_moments.length > 0) {
+          const top = report.diversion_moments.reduce((a, b) => a.duration_seconds > b.duration_seconds ? a : b);
+          insights.push(
+            <div key="diversion" className="flex items-start gap-2.5 p-2.5 bg-red-950/20 border border-red-900/20 rounded-lg">
+              <span className="text-lg leading-none flex-shrink-0">⚠️</span>
+              <span className="text-sm text-slate-300 leading-snug">
+                Biggest distraction: <strong className="text-red-300">{top.browser_domain ?? top.app_name ?? 'Unknown'}</strong> for {fmt(top.duration_seconds)}
+              </span>
+            </div>
+          );
+        }
+        if ((report.flow_seconds ?? 0) > 0 && report.total_duration_seconds > 0) {
+          const flowPct = Math.round(((report.flow_seconds ?? 0) / report.total_duration_seconds) * 100);
+          insights.push(
+            <div key="flow" className="flex items-start gap-2.5 p-2.5 bg-amber-950/20 border border-amber-800/20 rounded-lg">
+              <span className="text-lg leading-none flex-shrink-0">⚡</span>
+              <span className="text-sm text-slate-300 leading-snug">
+                <strong className="text-amber-300">{flowPct}%</strong> of your session was spent in deep flow
+              </span>
+            </div>
+          );
+        }
+        if (insights.length === 0) return null;
+        return (
+          <div className="card space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Sparkles size={13} className="text-brand-400" />
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Key Insights</h3>
+            </div>
+            {insights}
+          </div>
+        );
+      })()}
+
       {/* AI Coaching — main value section */}
       {(report.llm_summary || report.coaching_suggestions) && (
         <div className="card border-brand-700/30 bg-brand-950/20 space-y-4">
@@ -409,6 +469,26 @@ export default function ReportPage() {
           </button>
         </div>
       )}
+
+      {/* Next action */}
+      <div className="card border-brand-800/30 bg-brand-950/10">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles size={14} className="text-brand-400" />
+          <span className="text-xs font-semibold text-brand-300 uppercase tracking-wide">Your next move</span>
+        </div>
+        {report.coaching_suggestions && report.coaching_suggestions.length > 0 ? (
+          <p className="text-sm text-slate-300">{report.coaching_suggestions[0]}</p>
+        ) : (
+          <p className="text-sm text-slate-400">Start your next session and aim to beat this focus score.</p>
+        )}
+        <button
+          onClick={() => navigate('/')}
+          className="btn-primary mt-3 text-sm"
+        >
+          <Play size={14} fill="currentColor" />
+          Start next session
+        </button>
+      </div>
 
       {/* Quick actions */}
       <div className="flex gap-3">

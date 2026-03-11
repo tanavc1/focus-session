@@ -41,7 +41,7 @@ const NOTIFICATION_COOLDOWN_MS   = 5 * 60 * 1000;
 /** Minimum ms between any two screenshots (event-driven rate-limit). */
 const SCREENSHOT_MIN_INTERVAL_MS = 5_000;
 /** Maximum ms before we force a baseline screenshot even with no context change. */
-const SCREENSHOT_BASELINE_MS     = 90_000;
+const SCREENSHOT_BASELINE_MS     = 180_000;
 
 // ─── Settings cache ───────────────────────────────────────────────────────────
 // Avoid a DB read on every 3-second poll.
@@ -340,9 +340,15 @@ async function poll(
     const baselineExpired  = (now - state.lastScreenshotAt) >= SCREENSHOT_BASELINE_MS;
     const minIntervalOk    = (now - state.lastScreenshotAt) >= SCREENSHOT_MIN_INTERVAL_MS;
 
+    // Skip vision entirely if all windows are minimized or hidden
+    const allWindowsHidden = BrowserWindow.getAllWindows().every(
+      (w) => w.isMinimized() || !w.isVisible(),
+    );
+
     if (
       !raw.is_idle         &&
       !state.visionPending &&
+      !allWindowsHidden    &&
       settings.vision_enabled &&
       settings.vision_model   &&
       (contextChanged || baselineExpired) &&

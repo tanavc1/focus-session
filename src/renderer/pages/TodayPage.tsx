@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Zap, Target, Flame, TrendingUp, Clock, Plus,
   CheckCircle, Circle, ChevronRight, Play, BarChart2,
+  BookOpen, Sparkles, ArrowRight, X,
 } from 'lucide-react';
 import { useAppStore } from '../store/useStore';
 import { useSessionControl } from '../hooks/useSession';
@@ -34,31 +35,52 @@ function scoreColor(score: number): string {
   return 'text-red-400';
 }
 
+const DURATION_PRESETS = [
+  { label: '25m', minutes: 25 },
+  { label: '45m', minutes: 45 },
+  { label: '1h',  minutes: 60 },
+  { label: '90m', minutes: 90 },
+  { label: 'Open', minutes: 0 },
+];
+
 export default function TodayPage() {
   const navigate = useNavigate();
-  const { todayPlan, todayStats, streak, activeSession, refreshToday, setTodayPlan } = useAppStore();
-  const { quickStartSession } = useSessionControl();
+  const { todayPlan, todayStats, streak, activeSession, settings, refreshToday, setTodayPlan } = useAppStore();
+  const { quickStartSession, startSession } = useSessionControl();
   const [quickStarting, setQuickStarting] = useState(false);
   const [goalUpdating, setGoalUpdating] = useState<string | null>(null);
 
-  // Refresh today's data when landing on this page
+  // Focused start state
+  const [focusedOpen, setFocusedOpen] = useState(false);
+  const [focusTitle, setFocusTitle] = useState('');
+  const [focusGoal, setFocusGoal] = useState('');
+  const [focusDuration, setFocusDuration] = useState(0);
+  const [focusStarting, setFocusStarting] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     refreshToday();
   }, [refreshToday]);
 
-  // Also refresh when a session just ended (activeSession goes null)
   useEffect(() => {
     if (!activeSession) refreshToday();
   }, [activeSession, refreshToday]);
 
-  const hasPlan     = !!todayPlan;
-  const goals       = todayPlan?.goals ?? [];
-  const targetSec   = (todayPlan?.target_focus_minutes ?? 240) * 60;
-  const focusSec    = todayStats?.focus_seconds ?? 0;
-  const progressPct = Math.min(100, Math.round((focusSec / targetSec) * 100));
+  useEffect(() => {
+    if (focusedOpen && titleRef.current) {
+      setTimeout(() => titleRef.current?.focus(), 50);
+    }
+  }, [focusedOpen]);
+
+  const hasPlan   = !!todayPlan;
+  const goals     = todayPlan?.goals ?? [];
+  // Use per-day target from plan, fallback to settings daily target, fallback to 2h
+  const targetMin = todayPlan?.target_focus_minutes ?? settings?.daily_focus_target_minutes ?? 120;
+  const targetSec = targetMin * 60;
+  const focusSec  = todayStats?.focus_seconds ?? 0;
+  const progressPct = Math.min(100, Math.round((focusSec / Math.max(1, targetSec)) * 100));
   const todayScore  = todayStats?.focus_score ?? 0;
   const todaySessions = todayStats?.sessions ?? [];
-  const nextGoal    = goals.find((g) => !g.completed);
 
   const toggleGoal = useCallback(async (goal: DayGoal) => {
     if (!todayPlan) return;
@@ -81,11 +103,33 @@ export default function TodayPage() {
     catch { setQuickStarting(false); }
   }
 
-  async function startWithGoal(goal: DayGoal) {
+  async function handleFocusedStart(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!focusTitle.trim()) return;
+    setFocusStarting(true);
+    try {
+      await startSession(focusTitle.trim(), focusGoal.trim() || focusTitle.trim(), focusDuration || undefined);
+    } catch {
+      setFocusStarting(false);
+    }
+  }
+
+  function startWithGoal(goal: DayGoal) {
     navigate(`/session/new?goal=${encodeURIComponent(goal.text)}`);
   }
 
-  const showMorningBrief = !hasPlan && (todayStats?.session_count ?? 0) === 0;
+  // Motivational insight based on today's stats
+  function getTodayInsight(): string | null {
+    if (!todayStats || todayStats.session_count === 0) return null;
+    const focusMin = Math.round(focusSec / 60);
+    const targetMinLeft = Math.max(0, targetMin - focusMin);
+    if (progressPct >= 100) return `🎉 Daily target hit! ${fmt(focusSec)} focused today.`;
+    if (todayStats.flow_seconds > 0) return `🔥 ${fmt(todayStats.flow_seconds)} in flow today — keep it going.`;
+    if (targetMinLeft > 0 && focusSec > 0) return `${targetMinLeft}m left to hit your daily goal.`;
+    return null;
+  }
+
+  const insight = getTodayInsight();
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5">
@@ -101,7 +145,6 @@ export default function TodayPage() {
             <p className="text-sm text-slate-500 italic mt-0.5">"{todayPlan.morning_intention}"</p>
           )}
         </div>
-        {/* Streak */}
         {streak && streak.current_streak > 0 && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-950/40 border border-orange-900/30 rounded-xl">
             <Flame size={14} className="text-orange-400" />
@@ -111,27 +154,9 @@ export default function TodayPage() {
         )}
       </div>
 
-      {/* Morning brief CTA — shown only when no plan AND no sessions yet */}
-      {showMorningBrief && (
-        <div
-          className="card border-brand-700/40 bg-brand-950/20 flex items-center gap-4 cursor-pointer hover:bg-brand-950/30 transition-colors"
-          onClick={() => navigate('/plan')}
-        >
-          <div className="w-10 h-10 rounded-xl bg-brand-900/60 flex items-center justify-center flex-shrink-0">
-            <Target size={18} className="text-brand-400" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-slate-200">Plan your day</p>
-            <p className="text-xs text-slate-500 mt-0.5">Set goals and a focus target for today</p>
-          </div>
-          <ChevronRight size={16} className="text-slate-600" />
-        </div>
-      )}
-
-      {/* Progress ring + score */}
+      {/* Progress card */}
       {(hasPlan || focusSec > 0) && (
         <div className="card flex items-center gap-6">
-          {/* Ring */}
           <div className="relative w-20 h-20 flex-shrink-0">
             <svg viewBox="0 0 80 80" className="transform -rotate-90 w-full h-full">
               <circle cx="40" cy="40" r="34" fill="none" stroke="rgb(30,41,59)" strokeWidth="6" />
@@ -148,8 +173,6 @@ export default function TodayPage() {
               <span className="text-[9px] text-slate-500 leading-none">of goal</span>
             </div>
           </div>
-
-          {/* Stats */}
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-500">Focused today</span>
@@ -179,71 +202,10 @@ export default function TodayPage() {
         </div>
       )}
 
-      {/* Goals */}
-      {hasPlan && goals.length > 0 && (
-        <div className="card space-y-1">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <Target size={12} /> Today's goals
-            </h3>
-            <button
-              onClick={() => navigate('/plan')}
-              className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
-            >
-              Edit
-            </button>
-          </div>
-
-          {goals.map((goal) => (
-            <div
-              key={goal.id}
-              className="flex items-center gap-3 py-2 group rounded-lg hover:bg-slate-700/20 px-1 -mx-1 transition-colors"
-            >
-              <button
-                onClick={() => toggleGoal(goal)}
-                disabled={goalUpdating === goal.id}
-                className="flex-shrink-0 transition-colors"
-              >
-                {goal.completed
-                  ? <CheckCircle size={18} className="text-green-400" />
-                  : <Circle size={18} className="text-slate-600 group-hover:text-slate-500" />}
-              </button>
-              <span className={`flex-1 text-sm transition-colors ${
-                goal.completed ? 'line-through text-slate-600' : 'text-slate-200'
-              }`}>
-                {goal.text}
-              </span>
-              {!goal.completed && !activeSession && (
-                <button
-                  onClick={() => startWithGoal(goal)}
-                  className="opacity-0 group-hover:opacity-100 text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-all"
-                >
-                  <Play size={11} fill="currentColor" /> Start
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Start session */}
-      {!activeSession && (
-        <div className="flex gap-3">
-          <button
-            onClick={handleQuickStart}
-            disabled={quickStarting}
-            className="btn-primary flex-1 justify-center py-2.5"
-          >
-            {quickStarting
-              ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              : <Zap size={16} />}
-            {quickStarting ? 'Starting…' : nextGoal ? `Work on: ${nextGoal.text.slice(0, 30)}${nextGoal.text.length > 30 ? '…' : ''}` : 'Quick Start'}
-          </button>
-          {hasPlan && (
-            <button onClick={() => navigate('/session/new')} className="btn-secondary px-4">
-              <Plus size={16} /> New
-            </button>
-          )}
+      {/* Motivational insight */}
+      {insight && (
+        <div className="px-4 py-2.5 bg-slate-800/60 border border-slate-700/40 rounded-xl">
+          <p className="text-sm text-slate-300">{insight}</p>
         </div>
       )}
 
@@ -262,6 +224,167 @@ export default function TodayPage() {
         </button>
       )}
 
+      {/* ── START SESSION ─────────────────────────────────────────────────────── */}
+      {!activeSession && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Start a session</h3>
+
+          {/* Quick Start */}
+          <button
+            onClick={handleQuickStart}
+            disabled={quickStarting}
+            className="w-full flex items-center gap-4 p-4 bg-slate-800/60 border border-slate-700/40 hover:border-brand-700/60 hover:bg-slate-800 rounded-2xl transition-all text-left group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-brand-900/60 border border-brand-700/40 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-800/60 transition-colors">
+              {quickStarting
+                ? <span className="w-4 h-4 border-2 border-brand-400/30 border-t-brand-400 rounded-full animate-spin" />
+                : <Zap size={18} className="text-brand-400" />
+              }
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-slate-200">{quickStarting ? 'Starting…' : 'Quick Start'}</p>
+              <p className="text-xs text-slate-500 mt-0.5">No setup — just start. Captures everything.</p>
+            </div>
+            <ArrowRight size={16} className="text-slate-600 group-hover:text-slate-400 transition-colors" />
+          </button>
+
+          {/* Focused Start */}
+          <div className={`border rounded-2xl transition-all ${focusedOpen ? 'border-brand-700/60 bg-slate-800/80' : 'border-slate-700/40 bg-slate-800/60 hover:border-slate-600'}`}>
+            {!focusedOpen ? (
+              <button
+                onClick={() => setFocusedOpen(true)}
+                className="w-full flex items-center gap-4 p-4 text-left group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-slate-700/60 border border-slate-600/40 flex items-center justify-center flex-shrink-0 group-hover:bg-slate-700 transition-colors">
+                  <Target size={18} className="text-slate-300" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-200">Focused Start</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Set a goal before you dive in.</p>
+                </div>
+                <ArrowRight size={16} className="text-slate-600 group-hover:text-slate-400 transition-colors" />
+              </button>
+            ) : (
+              <form onSubmit={handleFocusedStart} className="p-4 space-y-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <Target size={14} className="text-brand-400" />
+                    <span className="text-sm font-semibold text-slate-200">Focused Start</span>
+                  </div>
+                  <button type="button" onClick={() => { setFocusedOpen(false); setFocusTitle(''); setFocusGoal(''); }} className="text-slate-600 hover:text-slate-400 transition-colors">
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <input
+                  ref={titleRef}
+                  className="input text-sm"
+                  placeholder="What are you working on? (e.g. Finish landing page)"
+                  value={focusTitle}
+                  onChange={(e) => setFocusTitle(e.target.value)}
+                  maxLength={80}
+                />
+
+                <textarea
+                  className="input text-sm resize-none"
+                  placeholder="Goal or notes (optional — e.g. Complete hero section, write copy)"
+                  value={focusGoal}
+                  onChange={(e) => setFocusGoal(e.target.value)}
+                  rows={2}
+                  maxLength={200}
+                />
+
+                {/* Duration */}
+                <div className="flex gap-2">
+                  {DURATION_PRESETS.map((p) => (
+                    <button
+                      key={p.minutes}
+                      type="button"
+                      onClick={() => setFocusDuration(p.minutes)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        focusDuration === p.minutes
+                          ? 'bg-brand-600 text-white border border-brand-500'
+                          : 'bg-slate-700/60 text-slate-400 border border-slate-600/40 hover:border-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!focusTitle.trim() || focusStarting}
+                  className="btn-primary w-full justify-center py-2.5"
+                >
+                  {focusStarting
+                    ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <Play size={14} fill="currentColor" />}
+                  {focusStarting ? 'Starting…' : 'Begin Session'}
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* Day Plan Goals */}
+          {hasPlan && goals.filter(g => !g.completed).length > 0 ? (
+            <div className="card space-y-1">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <BookOpen size={12} className="text-slate-500" />
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">From today's plan</h3>
+                </div>
+                <button onClick={() => navigate('/plan')} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
+                  Edit plan
+                </button>
+              </div>
+              {goals.filter(g => !g.completed).map((goal) => (
+                <div key={goal.id} className="flex items-center gap-3 py-1.5 group rounded-lg hover:bg-slate-700/20 px-1 -mx-1 transition-colors">
+                  <Circle size={16} className="text-slate-600 group-hover:text-slate-500 flex-shrink-0" />
+                  <span className="flex-1 text-sm text-slate-200 truncate">{goal.text}</span>
+                  <button
+                    onClick={() => startWithGoal(goal)}
+                    className="opacity-0 group-hover:opacity-100 text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-all flex-shrink-0"
+                  >
+                    <Play size={10} fill="currentColor" /> Start
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate('/plan')}
+              className="w-full flex items-center gap-4 p-4 bg-slate-800/40 border border-slate-700/30 border-dashed hover:border-slate-600 rounded-2xl transition-all text-left group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-slate-700/40 flex items-center justify-center flex-shrink-0">
+                <Plus size={18} className="text-slate-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-slate-400">Plan your day</p>
+                <p className="text-xs text-slate-600 mt-0.5">Set goals and a focus target for today.</p>
+              </div>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Completed goals */}
+      {hasPlan && goals.filter(g => g.completed).length > 0 && (
+        <div className="space-y-1">
+          <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
+            <CheckCircle size={11} /> Completed
+          </h3>
+          {goals.filter(g => g.completed).map((goal) => (
+            <div key={goal.id} className="flex items-center gap-3 py-1.5 group px-1">
+              <button onClick={() => toggleGoal(goal)} disabled={goalUpdating === goal.id} className="flex-shrink-0">
+                <CheckCircle size={16} className="text-green-500" />
+              </button>
+              <span className="flex-1 text-sm text-slate-600 line-through truncate">{goal.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Today's sessions */}
       {todaySessions.length > 0 && (
         <div>
@@ -276,18 +399,17 @@ export default function TodayPage() {
         </div>
       )}
 
-      {/* No activity yet nudge */}
-      {!hasPlan && (todayStats?.session_count ?? 0) === 0 && (
-        <div className="text-center py-6">
-          <p className="text-slate-600 text-sm">No sessions yet today.</p>
-          <p className="text-slate-700 text-xs mt-1">Start a session or plan your day to get going.</p>
+      {/* Empty state */}
+      {!hasPlan && todaySessions.length === 0 && (
+        <div className="text-center py-8 space-y-2">
+          <Sparkles size={28} className="text-slate-700 mx-auto" />
+          <p className="text-slate-500 text-sm font-medium">Ready to focus?</p>
+          <p className="text-slate-700 text-xs">Start a session above or plan your day.</p>
         </div>
       )}
     </div>
   );
 }
-
-// ─── Session row ──────────────────────────────────────────────────────────────
 
 function SessionRow({ session }: { session: Session }) {
   const navigate = useNavigate();

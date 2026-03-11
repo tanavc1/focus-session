@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
 
   // Notifications
   enable_focus_notifications: true,
+  daily_focus_target_minutes: 120,
 
   onboarding_completed: false,
 

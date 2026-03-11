@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Bot, Shield, Clock, Plus, Trash2, CheckCircle, XCircle,
-  Edit3, Save, X, Eye, EyeOff, RefreshCw, Camera, Bell,
+  Edit3, Save, X, Eye, EyeOff, RefreshCw, Camera, Bell, Target,
 } from 'lucide-react';
 import { useAppStore } from '../store/useStore';
 import type { Settings, AppClassification, ClassificationType, AiProvider } from '../../shared/types';
@@ -153,6 +153,54 @@ function GeneralSettings() {
             <p>• Resets automatically when you return to focused work</p>
           </div>
         )}
+      </div>
+
+      <div className="card space-y-4">
+        <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+          <Target size={14} />
+          Daily Focus Target
+        </h3>
+        <div>
+          <label className="label">Default daily focus goal</label>
+          <p className="text-xs text-slate-500 mb-3">How much focused time you aim for each day. Used when you don't set a per-day target in the planner.</p>
+          <div className="flex flex-wrap gap-2">
+            {[60, 90, 120, 180, 240, 300].map((min) => (
+              <button
+                key={min}
+                type="button"
+                onClick={() => setLocal((p) => ({ ...p, daily_focus_target_minutes: min }))}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  (local.daily_focus_target_minutes ?? 120) === min
+                    ? 'bg-brand-600 text-white border border-brand-500'
+                    : 'bg-slate-700 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {min >= 60 ? `${min / 60}h${min % 60 ? ` ${min % 60}m` : ''}` : `${min}m`}
+              </button>
+            ))}
+            {/* Custom */}
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={15}
+                max={600}
+                step={15}
+                value={
+                  [60, 90, 120, 180, 240, 300].includes(local.daily_focus_target_minutes ?? 120)
+                    ? ''
+                    : (local.daily_focus_target_minutes ?? 120)
+                }
+                placeholder="Custom"
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (!isNaN(v) && v > 0) setLocal((p) => ({ ...p, daily_focus_target_minutes: v }));
+                }}
+                className="input w-24 text-xs no-drag"
+              />
+              <span className="text-xs text-slate-500">min</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex justify-end">
