@@ -53,7 +53,7 @@ async function takeScreenshot(): Promise<{ data: string; mimeType: 'image/png' }
   const tmp = `/tmp/focus-snap-${Date.now()}.png`;
   try {
     await execAsync(`screencapture -x -m -t png "${tmp}"`, { timeout: 5_000 });
-    await execAsync(`sips -Z 900 "${tmp}" --out "${tmp}"`, { timeout: 3_000 });
+    await execAsync(`sips -Z 720 "${tmp}" --out "${tmp}"`, { timeout: 3_000 });
     const { stdout } = await execAsync(`base64 -i "${tmp}"`, { timeout: 3_000 });
     execAsync(`rm -f "${tmp}"`).catch(() => {});
     return { data: stdout.trim(), mimeType: 'image/png' };

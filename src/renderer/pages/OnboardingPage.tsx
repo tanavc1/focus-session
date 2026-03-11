@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Zap, Target, TrendingUp, Bot, ChevronRight, CheckCircle } from 'lucide-react';
+import { Zap, Target, TrendingUp, Bot, ChevronRight, CheckCircle, Shield } from 'lucide-react';
 
-const STEPS = ['welcome', 'howItWorks', 'done'] as const;
+const STEPS = ['welcome', 'howItWorks', 'permissions', 'done'] as const;
 type Step = typeof STEPS[number];
 
 interface Props {
@@ -18,17 +18,18 @@ export default function OnboardingPage({ onComplete }: Props) {
 
   return (
     <div className="h-screen w-screen bg-slate-900 flex flex-col items-center justify-center p-8">
-      {step === 'welcome' && <WelcomeStep onNext={() => setStep('howItWorks')} />}
-      {step === 'howItWorks' && <HowItWorksStep onNext={() => setStep('done')} />}
-      {step === 'done' && <DoneStep onFinish={finish} />}
+      {step === 'welcome'    && <WelcomeStep     onNext={() => setStep('howItWorks')} />}
+      {step === 'howItWorks' && <HowItWorksStep  onNext={() => setStep('permissions')} />}
+      {step === 'permissions'&& <PermissionsStep onNext={() => setStep('done')} />}
+      {step === 'done'       && <DoneStep        onFinish={finish} />}
 
-      {/* Dots */}
+      {/* Progress dots */}
       <div className="flex gap-2 mt-10">
         {STEPS.map((s) => (
           <div
             key={s}
-            className={`w-1.5 h-1.5 rounded-full transition-all ${
-              s === step ? 'bg-brand-400 w-4' : 'bg-slate-700'
+            className={`h-1.5 rounded-full transition-all ${
+              s === step ? 'bg-brand-400 w-6' : 'bg-slate-700 w-1.5'
             }`}
           />
         ))}
@@ -47,7 +48,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         <h1 className="text-3xl font-bold text-slate-100">Focus</h1>
         <p className="text-slate-400 mt-2 leading-relaxed">
           Your macOS companion for deep work.<br />
-          Track what you actually do, and improve every session.
+          Track what you actually do. Improve every session.
         </p>
       </div>
       <button onClick={onNext} className="btn-primary mx-auto px-8 py-3 text-base">
@@ -77,7 +78,7 @@ const FEATURES = [
   {
     icon: <Bot size={20} className="text-purple-400" />,
     title: 'AI coaching',
-    desc: 'After every session, get actionable insights — not just stats.',
+    desc: 'After every session, get actionable insights powered by Ollama, Claude, or OpenAI.',
   },
 ] as const;
 
@@ -104,7 +105,73 @@ function HowItWorksStep({ onNext }: { onNext: () => void }) {
       </div>
 
       <button onClick={onNext} className="btn-primary w-full justify-center py-3">
-        Looks good <ChevronRight size={18} />
+        Next <ChevronRight size={18} />
+      </button>
+    </div>
+  );
+}
+
+const PERMISSIONS = [
+  {
+    icon: '♿',
+    title: 'Accessibility',
+    required: true,
+    desc: 'Lets Focus see which app and window are active. Required for tracking.',
+    path: 'System Settings → Privacy & Security → Accessibility → Enable Focus',
+  },
+  {
+    icon: '🌐',
+    title: 'Automation (per browser)',
+    required: false,
+    desc: 'Allows Focus to read the current browser URL for accurate domain tracking.',
+    path: 'System Settings → Privacy & Security → Automation → Focus → Enable your browser',
+  },
+  {
+    icon: '📸',
+    title: 'Screen Recording',
+    required: false,
+    desc: 'Powers Vision Analysis — screenshots are analyzed by AI then immediately discarded.',
+    path: 'System Settings → Privacy & Security → Screen Recording → Enable Focus',
+  },
+] as const;
+
+function PermissionsStep({ onNext }: { onNext: () => void }) {
+  return (
+    <div className="max-w-sm w-full space-y-6">
+      <div className="text-center">
+        <div className="w-14 h-14 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto mb-4">
+          <Shield size={26} className="text-brand-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-100">Permissions</h2>
+        <p className="text-slate-500 text-sm mt-1">macOS will ask for these as you use Focus</p>
+      </div>
+
+      <div className="space-y-3">
+        {PERMISSIONS.map((p) => (
+          <div key={p.title} className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/40">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">{p.icon}</span>
+              <p className="text-sm font-semibold text-slate-200">{p.title}</p>
+              <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                p.required
+                  ? 'bg-brand-900/60 text-brand-300 border border-brand-700/40'
+                  : 'bg-slate-700/60 text-slate-500 border border-slate-600/40'
+              }`}>
+                {p.required ? 'Required' : 'Optional'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed mb-1.5">{p.desc}</p>
+            <p className="text-[10px] text-slate-600 font-mono leading-relaxed">{p.path}</p>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-xs text-slate-600 text-center">
+        macOS will prompt you automatically — just click Allow when asked.
+      </p>
+
+      <button onClick={onNext} className="btn-primary w-full justify-center py-3">
+        Got it <ChevronRight size={18} />
       </button>
     </div>
   );
@@ -120,7 +187,7 @@ function DoneStep({ onFinish }: { onFinish: () => void }) {
         <h2 className="text-2xl font-bold text-slate-100">You're all set</h2>
         <p className="text-slate-400 mt-2 leading-relaxed">
           Start by planning your day, or jump straight into a session.<br />
-          Focus runs quietly in the menu bar while you work.
+          Focus lives in your menu bar and works silently in the background.
         </p>
       </div>
       <div className="space-y-2.5">
@@ -128,6 +195,10 @@ function DoneStep({ onFinish }: { onFinish: () => void }) {
           Start focusing <ChevronRight size={18} />
         </button>
       </div>
+      <p className="text-xs text-slate-600">
+        Tip: Enable Ollama in Settings → AI for free local AI coaching after each session.
+      </p>
     </div>
   );
 }
+

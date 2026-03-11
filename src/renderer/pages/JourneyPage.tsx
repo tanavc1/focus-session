@@ -49,6 +49,8 @@ export default function JourneyPage() {
       if (appsRes.success && appsRes.data)        setTopApps(appsRes.data);
       if (distRes.success && distRes.data)        setTopDistractions(distRes.data);
       if (sessRes.success && sessRes.data)        setRecentSessions(sessRes.data.slice(0, 12));
+    }).catch((err) => {
+      console.error('[JourneyPage] Failed to load stats:', err);
     }).finally(() => setLoading(false));
   }, []);
 

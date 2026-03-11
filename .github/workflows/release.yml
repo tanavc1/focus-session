@@ -50,9 +50,9 @@ jobs:
           body: |
             ## ⬇️ Download Focus for macOS
 
-            **[👉 Click here to download Focus.dmg](https://github.com/tanavc1/focus-session/releases/latest/download/Focus.dmg)**
+            **[👉 Download Focus.dmg](https://github.com/${{ github.repository }}/releases/latest/download/Focus.dmg)**
 
-            > Requires macOS 12 (Monterey) or later · Apple Silicon & Intel supported
+            > Requires macOS 12 (Monterey) or later · Apple Silicon & Intel supported · Free & open source
 
             ---
 
@@ -61,30 +61,37 @@ jobs:
             **1. Open the DMG**
             Double-click `Focus.dmg` and drag **Focus** into your Applications folder.
 
-            **2. Bypass Gatekeeper (one time)**
+            **2. First launch (one time Gatekeeper bypass)**
             Right-click **Focus** in Applications → click **Open** → click **Open** again when macOS warns about an unidentified developer.
 
             **3. Grant Accessibility permission**
-            When prompted, go to **System Settings → Privacy & Security → Accessibility** and enable Focus.
+            When prompted, go to **System Settings → Privacy & Security → Accessibility** and enable Focus. This is required for activity tracking.
 
             ---
 
             ### Optional: Track browser URLs
 
-            Go to **System Settings → Privacy & Security → Automation** and enable Focus for your browser (Chrome, Arc, Safari).
+            Go to **System Settings → Privacy & Security → Automation** and enable Focus for your browser (Chrome, Arc, Safari, Brave, Edge).
 
             ---
 
             ### Optional: AI-powered session reports
 
-            Install [Ollama](https://ollama.com) for local AI summaries:
+            **Local (free, private)** — Install [Ollama](https://ollama.com):
             ```
             brew install ollama
             ollama serve
             ollama pull phi4-mini
             ```
-            Then configure it in **Settings → AI** inside the app.
+
+            **Cloud** — Add a Claude or OpenAI API key in **Settings → AI** for the highest quality reports.
 
             ---
-            *Built from [`${{ github.sha }}`](https://github.com/tanavc1/focus-session/commit/${{ github.sha }})*
+
+            ### What is Focus?
+
+            Focus is a macOS productivity tracker that automatically detects what you're working on, identifies distraction patterns, tracks flow states, and generates AI coaching reports after each session. Everything runs locally — no accounts, no cloud, no data leaves your Mac.
+
+            ---
+            *Built from [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})*
           files: out/make/Focus.dmg

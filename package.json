@@ -1,8 +1,8 @@
 {
   "name": "focus-session",
-  "productName": "Focus Session",
+  "productName": "Focus",
   "version": "1.0.0",
-  "description": "Local-first focus tracking app for macOS",
+  "description": "macOS focus tracker — automatic activity tracking, flow detection, and AI coaching",
   "main": ".vite/build/electron-main.js",
   "scripts": {
     "start": "electron-forge start",

@@ -559,7 +559,7 @@ function AiSettings() {
             <div className="p-3 bg-slate-800/40 rounded-lg text-xs text-slate-400 space-y-1">
               <p className="text-slate-300 font-medium">How it works:</p>
               <p>• Screenshots fire automatically whenever you switch apps, URLs, or files</p>
-              <p>• A baseline screenshot is also taken every 60 s to stay current</p>
+              <p>• A baseline screenshot is also taken every 3 minutes to stay current</p>
               <p>• The vision model describes what's on screen in plain text</p>
               <p>• These descriptions are included in your AI coaching report</p>
               <p>• <span className="text-slate-300">Screenshots are never stored</span> — only the text description</p>

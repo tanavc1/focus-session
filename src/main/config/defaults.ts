@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enable_llm: true,
 
   // Vision (Ollama-based by default — free and local)
-  // Screenshots are taken automatically: on every context change + every 60s baseline.
+  // Screenshots are taken automatically: on every context change + every 3 min baseline.
   vision_enabled: true,
   vision_model: 'qwen3-vl:8b',    // installed Ollama vision model
 
