@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed for accurate commit count
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -21,12 +23,27 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Get version from package.json
+      - name: Auto-set version from commit count
         id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: |
+          # Major.Minor come from package.json; patch is the total commit count.
+          # Every push to main produces a unique, strictly-increasing version.
+          # e.g. 1.0.0 → 1.0.1 → 1.0.2 … with no manual steps required.
+          BASE=$(node -p "const p=require('./package.json'); \`\${p.version.split('.')[0]}.\${p.version.split('.')[1]}\`")
+          PATCH=$(git rev-list --count HEAD)
+          VERSION="${BASE}.${PATCH}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+          # Write the computed version back into package.json before building
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${VERSION}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Building version ${VERSION}"
 
       - name: Install dependencies
-        # npm ci runs postinstall which rebuilds better-sqlite3 for Electron
         run: npm ci
 
       - name: Build DMG
@@ -34,20 +51,17 @@ jobs:
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
-      - name: Rename DMG to fixed filename
-        # Always name it Focus.dmg so the download URL never changes
+      - name: Rename DMG to Focus.dmg
+        # Fixed filename so the download URL never changes between releases
         run: |
           DMG=$(find out/make -name "*.dmg" | head -1)
           if [ -z "$DMG" ]; then
-            echo "ERROR: No DMG found in out/make/"
-            find out/make -type f | head -20
-            exit 1
+            echo "ERROR: No DMG found"; find out/make -type f | head -20; exit 1
           fi
-          echo "Found: $DMG"
           cp "$DMG" out/make/Focus.dmg
-          echo "Renamed to out/make/Focus.dmg"
+          echo "Packaged as out/make/Focus.dmg (v${{ steps.version.outputs.version }})"
 
-      - name: Publish versioned release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
@@ -58,44 +72,26 @@ jobs:
 
             **[👉 Download Focus.dmg](https://github.com/${{ github.repository }}/releases/latest/download/Focus.dmg)**
 
-            > Requires macOS 12 (Monterey) or later · Apple Silicon & Intel supported · Free & open source
+            > macOS 12 (Monterey) or later · Apple Silicon & Intel · Free & open source
 
             ---
 
             ### Install in 3 steps
 
-            **1. Open the DMG**
-            Double-click `Focus.dmg` and drag **Focus** into your Applications folder.
-
-            **2. First launch (one time)**
-            Right-click **Focus** in Applications → click **Open** → click **Open** again when macOS warns about an unidentified developer.
-
-            **3. Grant Accessibility permission**
-            When prompted, go to **System Settings → Privacy & Security → Accessibility** and enable Focus.
+            1. Open `Focus.dmg` → drag **Focus** into Applications
+            2. First launch: right-click → **Open** → **Open** again *(one-time Gatekeeper bypass)*
+            3. Grant **Accessibility** permission when prompted
 
             ---
 
-            ### Optional: Track browser URLs
+            ### Optional: AI-powered reports
 
-            Go to **System Settings → Privacy & Security → Automation** and enable Focus for your browser.
-
-            ---
-
-            ### Optional: AI-powered session reports
-
-            **Local (free)** — Install [Ollama](https://ollama.com):
+            **Local (free)** — [Install Ollama](https://ollama.com) then:
             ```
-            brew install ollama && ollama serve && ollama pull phi4-mini
+            ollama serve && ollama pull phi4-mini
             ```
-
-            **Cloud** — Add a Claude or OpenAI API key in **Settings → AI**.
-
-            ---
-
-            ### What is Focus?
-
-            Focus is a macOS productivity tracker that automatically detects what you're working on, identifies distraction patterns, tracks flow states, and generates AI coaching reports after each session. Everything runs locally — no accounts, no cloud.
+            **Cloud** — Add a Claude or OpenAI key in **Settings → AI**.
 
             ---
-            *Built from [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})*
+            *Commit [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})*
           files: out/make/Focus.dmg
