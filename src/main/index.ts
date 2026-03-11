@@ -99,6 +99,11 @@ app.whenReady().then(() => {
     }
   });
 
+  // Graceful quit — used by update flow so user can reinstall
+  ipcMain.handle('app:quit', () => {
+    app.quit();
+  });
+
   // Resume tracking if there was an active session (e.g., crash recovery)
   try {
     const activeSession = getActiveSession();

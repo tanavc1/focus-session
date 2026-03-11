@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Home, TrendingUp, Settings, Zap, Flame, Download, X } from 'lucide-react';
+import { Home, TrendingUp, Settings, Zap, Flame, Download, X, CheckCircle } from 'lucide-react';
 import { useAppStore } from '../store/useStore';
 import { useSessionControl } from '../hooks/useSession';
 import PrivacyBadge from './PrivacyBadge';
@@ -12,6 +12,7 @@ export default function Layout() {
   const [sessionPaused, setSessionPaused] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; downloadUrl: string } | null>(null);
   const [updateDismissed, setUpdateDismissed] = useState(false);
+  const [updateDownloading, setUpdateDownloading] = useState(false);
 
   // Subscribe to Spotify updates
   useEffect(() => {
@@ -74,23 +75,61 @@ export default function Layout() {
 
       {/* Update available banner */}
       {updateInfo && !updateDismissed && (
-        <div className="no-drag flex items-center gap-3 px-4 py-2 bg-brand-900/60 border-b border-brand-700/50">
-          <Download size={13} className="text-brand-400 flex-shrink-0" />
-          <span className="text-xs text-brand-200 flex-1">
-            Focus {updateInfo.version} is available
-          </span>
-          <button
-            onClick={() => window.api.downloadUpdate(updateInfo.downloadUrl)}
-            className="text-xs font-semibold text-white bg-brand-600 hover:bg-brand-500 px-3 py-1 rounded-lg transition-colors flex-shrink-0"
-          >
-            Download
-          </button>
-          <button
-            onClick={() => setUpdateDismissed(true)}
-            className="text-brand-500 hover:text-brand-300 transition-colors flex-shrink-0"
-          >
-            <X size={13} />
-          </button>
+        <div className="no-drag flex flex-col px-4 py-2.5 bg-brand-900/60 border-b border-brand-700/50 gap-2">
+          {!updateDownloading ? (
+            /* Step 1 — notify */
+            <div className="flex items-center gap-3">
+              <Download size={13} className="text-brand-400 flex-shrink-0" />
+              <span className="text-xs text-brand-200 flex-1">
+                Focus {updateInfo.version} is available
+              </span>
+              <button
+                onClick={() => {
+                  window.api.downloadUpdate(updateInfo.downloadUrl);
+                  setUpdateDownloading(true);
+                }}
+                className="text-xs font-semibold text-white bg-brand-600 hover:bg-brand-500 px-3 py-1 rounded-lg transition-colors flex-shrink-0"
+              >
+                Download Update
+              </button>
+              <button
+                onClick={() => setUpdateDismissed(true)}
+                className="text-brand-500 hover:text-brand-300 transition-colors flex-shrink-0"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ) : (
+            /* Step 2 — install instructions */
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={13} className="text-green-400 flex-shrink-0" />
+                <span className="text-xs font-semibold text-green-300">
+                  Downloading Focus {updateInfo.version}…
+                </span>
+                <button
+                  onClick={() => setUpdateDismissed(true)}
+                  className="ml-auto text-brand-600 hover:text-brand-400 transition-colors"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              <div className="text-xs text-slate-400 leading-relaxed pl-5">
+                When the download finishes:{' '}
+                <span className="text-slate-300">1)</span> Open <strong className="text-slate-200">Focus.dmg</strong>{' '}
+                <span className="text-slate-300">2)</span> Drag Focus → Applications{' '}
+                <span className="text-slate-300">3)</span> Quit and reopen Focus
+              </div>
+              <div className="pl-5">
+                <button
+                  onClick={() => window.api.quitApp()}
+                  className="text-xs font-semibold text-brand-400 hover:text-brand-300 transition-colors"
+                >
+                  Quit Focus now →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

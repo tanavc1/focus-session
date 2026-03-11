@@ -149,6 +149,9 @@ const api = {
 
   downloadUpdate: (url: string) =>
     ipcRenderer.invoke('update:download', url),
+
+  quitApp: () =>
+    ipcRenderer.invoke('app:quit'),
 };
 
 contextBridge.exposeInMainWorld('api', api);

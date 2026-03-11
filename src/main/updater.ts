@@ -74,6 +74,10 @@ function broadcast(version: string, downloadUrl: string, releaseUrl: string) {
 
 /** Schedule an update check 15 s after app is ready. */
 export function scheduleUpdateCheck(): void {
+  // Skip in development — package.json version is 1.0.0 which would always
+  // appear outdated compared to production releases.
+  if (!app.isPackaged) return;
+
   setTimeout(async () => {
     try {
       const release = await fetchLatestRelease();
