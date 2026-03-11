@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Home, TrendingUp, Settings, Zap, Flame } from 'lucide-react';
+import { Home, TrendingUp, Settings, Zap, Flame, Download, X } from 'lucide-react';
 import { useAppStore } from '../store/useStore';
 import { useSessionControl } from '../hooks/useSession';
 import PrivacyBadge from './PrivacyBadge';
@@ -10,6 +10,8 @@ export default function Layout() {
   const { activeSession, streak, setSpotifyTrack } = useAppStore();
   const { quickStartSession, endSession } = useSessionControl();
   const [sessionPaused, setSessionPaused] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; downloadUrl: string } | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
 
   // Subscribe to Spotify updates
   useEffect(() => {
@@ -47,6 +49,13 @@ export default function Layout() {
     if (!activeSession) setSessionPaused(false);
   }, [activeSession]);
 
+  // Listen for update notifications from main process
+  useEffect(() => {
+    return window.api.onUpdateAvailable((info) => {
+      setUpdateInfo({ version: info.version, downloadUrl: info.downloadUrl });
+    });
+  }, []);
+
   const sessionIcon = useMemo(() => (
     <div className="relative">
       <Zap size={18} />
@@ -62,6 +71,28 @@ export default function Layout() {
       <div className="titlebar-spacer flex items-center px-20 drag-region">
         <span className="text-xs text-slate-600 font-semibold tracking-widest uppercase">Focus</span>
       </div>
+
+      {/* Update available banner */}
+      {updateInfo && !updateDismissed && (
+        <div className="no-drag flex items-center gap-3 px-4 py-2 bg-brand-900/60 border-b border-brand-700/50">
+          <Download size={13} className="text-brand-400 flex-shrink-0" />
+          <span className="text-xs text-brand-200 flex-1">
+            Focus {updateInfo.version} is available
+          </span>
+          <button
+            onClick={() => window.api.downloadUpdate(updateInfo.downloadUrl)}
+            className="text-xs font-semibold text-white bg-brand-600 hover:bg-brand-500 px-3 py-1 rounded-lg transition-colors flex-shrink-0"
+          >
+            Download
+          </button>
+          <button
+            onClick={() => setUpdateDismissed(true)}
+            className="text-brand-500 hover:text-brand-300 transition-colors flex-shrink-0"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Live session status bar */}
       {activeSession && (

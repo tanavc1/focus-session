@@ -21,12 +21,18 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Get version from package.json
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Install dependencies
         # npm ci runs postinstall which rebuilds better-sqlite3 for Electron
         run: npm ci
 
       - name: Build DMG
         run: npm run make
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Rename DMG to fixed filename
         # Always name it Focus.dmg so the download URL never changes
@@ -41,11 +47,11 @@ jobs:
           cp "$DMG" out/make/Focus.dmg
           echo "Renamed to out/make/Focus.dmg"
 
-      - name: Publish to GitHub Releases
+      - name: Publish versioned release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: "Focus — Latest Build"
+          tag_name: v${{ steps.version.outputs.version }}
+          name: "Focus v${{ steps.version.outputs.version }}"
           make_latest: true
           body: |
             ## ⬇️ Download Focus for macOS
@@ -61,36 +67,34 @@ jobs:
             **1. Open the DMG**
             Double-click `Focus.dmg` and drag **Focus** into your Applications folder.
 
-            **2. First launch (one time Gatekeeper bypass)**
+            **2. First launch (one time)**
             Right-click **Focus** in Applications → click **Open** → click **Open** again when macOS warns about an unidentified developer.
 
             **3. Grant Accessibility permission**
-            When prompted, go to **System Settings → Privacy & Security → Accessibility** and enable Focus. This is required for activity tracking.
+            When prompted, go to **System Settings → Privacy & Security → Accessibility** and enable Focus.
 
             ---
 
             ### Optional: Track browser URLs
 
-            Go to **System Settings → Privacy & Security → Automation** and enable Focus for your browser (Chrome, Arc, Safari, Brave, Edge).
+            Go to **System Settings → Privacy & Security → Automation** and enable Focus for your browser.
 
             ---
 
             ### Optional: AI-powered session reports
 
-            **Local (free, private)** — Install [Ollama](https://ollama.com):
+            **Local (free)** — Install [Ollama](https://ollama.com):
             ```
-            brew install ollama
-            ollama serve
-            ollama pull phi4-mini
+            brew install ollama && ollama serve && ollama pull phi4-mini
             ```
 
-            **Cloud** — Add a Claude or OpenAI API key in **Settings → AI** for the highest quality reports.
+            **Cloud** — Add a Claude or OpenAI API key in **Settings → AI**.
 
             ---
 
             ### What is Focus?
 
-            Focus is a macOS productivity tracker that automatically detects what you're working on, identifies distraction patterns, tracks flow states, and generates AI coaching reports after each session. Everything runs locally — no accounts, no cloud, no data leaves your Mac.
+            Focus is a macOS productivity tracker that automatically detects what you're working on, identifies distraction patterns, tracks flow states, and generates AI coaching reports after each session. Everything runs locally — no accounts, no cloud.
 
             ---
             *Built from [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})*

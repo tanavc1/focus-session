@@ -139,6 +139,16 @@ const api = {
     ipcRenderer.on('session:resumed', sub);
     return () => ipcRenderer.removeListener('session:resumed', sub);
   },
+
+  // Auto-update
+  onUpdateAvailable: (cb: (info: { version: string; downloadUrl: string; releaseUrl: string }) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, info: { version: string; downloadUrl: string; releaseUrl: string }) => cb(info);
+    ipcRenderer.on('update:available', listener);
+    return () => ipcRenderer.removeListener('update:available', listener);
+  },
+
+  downloadUpdate: (url: string) =>
+    ipcRenderer.invoke('update:download', url),
 };
 
 contextBridge.exposeInMainWorld('api', api);

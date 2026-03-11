@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, powerMonitor } from 'electron';
+import { app, BrowserWindow, shell, powerMonitor, ipcMain } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc/handlers';
 import { getActiveSession } from './database/db';
@@ -6,6 +6,7 @@ import { startTracking, stopTracking } from './tracking/activityTracker';
 import { startSpotifyTracking, stopSpotifyTracking } from './tracking/spotifyTracker';
 import { createTray, destroyTray, setTrayActivity } from './tray';
 import { registerActivityCallback } from './tracking/activityTracker';
+import { scheduleUpdateCheck, openDownloadUrl } from './updater';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 try {
@@ -76,6 +77,14 @@ app.whenReady().then(() => {
 
   // Start Spotify polling (works whenever Spotify desktop app is open)
   startSpotifyTracking();
+
+  // Check for updates in the background (15s delay, non-blocking)
+  scheduleUpdateCheck();
+
+  // Handle download request from renderer
+  ipcMain.handle('update:download', (_event, url: string) => {
+    openDownloadUrl(url);
+  });
 
   // Resume tracking if there was an active session (e.g., crash recovery)
   try {

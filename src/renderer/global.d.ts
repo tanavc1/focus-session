@@ -41,6 +41,8 @@ interface ElectronAPI {
   getDayPlan: (date: string) => Promise<IpcResponse<DayPlan | null>>;
   onSessionSuspended: (cb: () => void) => () => void;
   onSessionResumed: (cb: () => void) => () => void;
+  onUpdateAvailable: (cb: (info: { version: string; downloadUrl: string; releaseUrl: string }) => void) => () => void;
+  downloadUpdate: (url: string) => Promise<void>;
   setDayPlan: (plan: Omit<DayPlan, 'created_at' | 'updated_at'>) => Promise<IpcResponse<DayPlan>>;
   getDayStats: (date: string) => Promise<IpcResponse<DayStats>>;
   getWeekStats: (end_date: string) => Promise<IpcResponse<WeekStats>>;
