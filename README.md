@@ -6,15 +6,17 @@ A local-first focus and productivity tracker for macOS. Tracks your active apps 
 
 ## Download
 
-**[⬇ Download the latest Focus.dmg](https://github.com/tanavc1/focus-session/releases/tag/latest)**
+### **[⬇ Download Focus.dmg](https://github.com/tanavc1/focus-session/releases/latest/download/Focus.dmg)**
 
 > macOS 12 (Monterey) or later · Apple Silicon and Intel both supported
 
 ### Install in 3 steps
 
-1. Open the `.dmg` → drag **Focus** to your **Applications** folder
-2. **Right-click** Focus in Applications → click **Open** (required once for unsigned builds)
-3. Grant **Accessibility** permission when prompted
+**Step 1** — Open `Focus.dmg` and drag **Focus** into your Applications folder
+
+**Step 2** — Right-click **Focus** in Applications → **Open** → click **Open** again when macOS warns about an unidentified developer _(one-time step for unsigned apps)_
+
+**Step 3** — Grant **Accessibility** permission when prompted _(System Settings → Privacy & Security → Accessibility)_
 
 ---
 

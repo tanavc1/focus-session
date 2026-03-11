@@ -22,46 +22,69 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        # npm ci runs postinstall which rebuilds better-sqlite3 for Electron
         run: npm ci
 
-      - name: Build & package
+      - name: Build DMG
         run: npm run make
-        env:
-          APP_VERSION: ${{ github.run_number > 1 && format('1.0.{0}', github.run_number) || '1.0.0' }}
 
-      - name: Find DMG
-        id: find_dmg
+      - name: Rename DMG to fixed filename
+        # Always name it Focus.dmg so the download URL never changes
         run: |
           DMG=$(find out/make -name "*.dmg" | head -1)
-          echo "path=$DMG" >> $GITHUB_OUTPUT
-          echo "name=$(basename $DMG)" >> $GITHUB_OUTPUT
+          if [ -z "$DMG" ]; then
+            echo "ERROR: No DMG found in out/make/"
+            find out/make -type f | head -20
+            exit 1
+          fi
+          echo "Found: $DMG"
+          cp "$DMG" out/make/Focus.dmg
+          echo "Renamed to out/make/Focus.dmg"
 
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Focus-macOS
-          path: ${{ steps.find_dmg.outputs.path }}
-          retention-days: 30
-
-      - name: Update rolling latest release
+      - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: "Focus — Latest Build"
-          prerelease: false
           make_latest: true
           body: |
-            ## Download Focus
+            ## ⬇️ Download Focus for macOS
 
-            **[⬇ Download Focus.dmg](${{ steps.find_dmg.outputs.name }})** — macOS 12+
+            **[👉 Click here to download Focus.dmg](https://github.com/tanavc1/focus-session/releases/latest/download/Focus.dmg)**
+
+            > Requires macOS 12 (Monterey) or later · Apple Silicon & Intel supported
+
+            ---
+
+            ### Install in 3 steps
+
+            **1. Open the DMG**
+            Double-click `Focus.dmg` and drag **Focus** into your Applications folder.
+
+            **2. Bypass Gatekeeper (one time)**
+            Right-click **Focus** in Applications → click **Open** → click **Open** again when macOS warns about an unidentified developer.
+
+            **3. Grant Accessibility permission**
+            When prompted, go to **System Settings → Privacy & Security → Accessibility** and enable Focus.
 
             ---
 
-            **First time installing?**
-            1. Open the `.dmg` and drag **Focus** to your Applications folder
-            2. Right-click Focus in Applications → **Open** (required once for unsigned apps)
-            3. Grant **Accessibility** access when prompted (System Settings → Privacy & Security → Accessibility)
+            ### Optional: Track browser URLs
+
+            Go to **System Settings → Privacy & Security → Automation** and enable Focus for your browser (Chrome, Arc, Safari).
 
             ---
-            Built from commit ${{ github.sha }} · ${{ github.event.head_commit.message }}
-          files: ${{ steps.find_dmg.outputs.path }}
+
+            ### Optional: AI-powered session reports
+
+            Install [Ollama](https://ollama.com) for local AI summaries:
+            ```
+            brew install ollama
+            ollama serve
+            ollama pull phi4-mini
+            ```
+            Then configure it in **Settings → AI** inside the app.
+
+            ---
+            *Built from [`${{ github.sha }}`](https://github.com/tanavc1/focus-session/commit/${{ github.sha }})*
+          files: out/make/Focus.dmg
