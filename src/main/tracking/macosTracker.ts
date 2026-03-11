@@ -1,242 +1,171 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
+/**
+ * macOS Activity Tracker — OS-level capture layer.
+ *
+ * Performance design:
+ *  • ONE unified AppleScript per poll (gets app + window title + browser URL in a single
+ *    subprocess spawn instead of the previous 2-3 separate calls).
+ *  • Idle time via Electron's powerMonitor.getSystemIdleTime() — zero subprocess spawn,
+ *    zero disk I/O, synchronous, always fresh.
+ *  • AppleScript is skipped entirely when the user is idle (no subprocess cost at all).
+ *  • Hard 3s timeout prevents a hung script from stalling the poll loop.
+ */
+
+import { powerMonitor } from 'electron';
+import { exec }         from 'child_process';
+import { promisify }    from 'util';
 import { BROWSER_APP_NAMES } from '../config/defaults';
 
 const execAsync = promisify(exec);
 
-// ─── Idle time cache ──────────────────────────────────────────────────────────
-// ioreg is an expensive kernel call — only run it every 15 s.
-const IDLE_CACHE_TTL_MS = 15_000;
-let _cachedIdleSeconds = 0;
-let _lastIdleCheckAt   = 0;
-
 export interface RawActivity {
-  app_name: string | null;
-  window_title: string | null;
-  browser_url: string | null;
+  app_name:       string | null;
+  window_title:   string | null;
+  browser_url:    string | null;
   browser_domain: string | null;
-  idle_seconds: number;
-  is_idle: boolean;
-}
-
-// ─── AppleScript helpers ──────────────────────────────────────────────────────
-
-/**
- * Get the frontmost application name and window title.
- * Returns null fields on failure.
- */
-async function getFrontmostApp(): Promise<{ app_name: string | null; window_title: string | null }> {
-  const script = `
-    tell application "System Events"
-      set frontApp to first application process whose frontmost is true
-      set appName to name of frontApp
-      set windowTitle to ""
-      try
-        set windowTitle to name of front window of frontApp
-      end try
-      return appName & "|||" & windowTitle
-    end tell
-  `;
-
-  try {
-    const { stdout } = await execAsync(`osascript -e '${escapeAppleScript(script)}'`);
-    const parts = stdout.trim().split('|||');
-    return {
-      app_name: parts[0]?.trim() || null,
-      window_title: parts[1]?.trim() || null,
-    };
-  } catch {
-    return { app_name: null, window_title: null };
-  }
-}
-
-/**
- * Get the URL from a browser application using AppleScript.
- * Supports Chrome, Safari, Firefox (with limitations), Arc, Brave.
- */
-async function getBrowserUrl(app_name: string): Promise<string | null> {
-  let script: string;
-
-  const normalizedName = app_name.toLowerCase();
-
-  if (normalizedName.includes('safari')) {
-    script = `tell application "Safari"
-      if (count of windows) > 0 then
-        try
-          return URL of current tab of front window
-        end try
-      end if
-      return ""
-    end tell`;
-  } else if (
-    normalizedName.includes('chrome') ||
-    normalizedName.includes('chromium')
-  ) {
-    script = `tell application "Google Chrome"
-      if (count of windows) > 0 then
-        try
-          return URL of active tab of front window
-        end try
-      end if
-      return ""
-    end tell`;
-  } else if (normalizedName.includes('arc')) {
-    script = `tell application "Arc"
-      if (count of windows) > 0 then
-        try
-          return URL of active tab of front window
-        end try
-      end if
-      return ""
-    end tell`;
-  } else if (normalizedName.includes('brave')) {
-    script = `tell application "Brave Browser"
-      if (count of windows) > 0 then
-        try
-          return URL of active tab of front window
-        end try
-      end if
-      return ""
-    end tell`;
-  } else if (normalizedName.includes('edge')) {
-    script = `tell application "Microsoft Edge"
-      if (count of windows) > 0 then
-        try
-          return URL of active tab of front window
-        end try
-      end if
-      return ""
-    end tell`;
-  } else if (normalizedName.includes('firefox')) {
-    // Firefox doesn't support AppleScript URL access; parse from window title
-    return null;
-  } else {
-    return null;
-  }
-
-  try {
-    const { stdout } = await execAsync(`osascript -e '${escapeAppleScript(script)}'`, {
-      timeout: 2000,
-    });
-    const url = stdout.trim();
-    return url.length > 0 ? url : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Get system idle time in seconds using IOKit.
- */
-async function getIdleSeconds(): Promise<number> {
-  const now = Date.now();
-  if (now - _lastIdleCheckAt < IDLE_CACHE_TTL_MS) return _cachedIdleSeconds;
-  _lastIdleCheckAt = now;
-  try {
-    const { stdout } = await execAsync(
-      "ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print $NF/1000000000; exit}'",
-      { timeout: 1500 },
-    );
-    const seconds = parseFloat(stdout.trim());
-    if (!isNaN(seconds)) _cachedIdleSeconds = seconds;
-  } catch {
-    // keep stale value — non-fatal
-  }
-  return _cachedIdleSeconds;
+  idle_seconds:   number;
+  is_idle:        boolean;
 }
 
 // ─── Domain extraction ────────────────────────────────────────────────────────
 
-/**
- * Extract domain from a URL string.
- */
 export function extractDomain(url: string | null): string | null {
   if (!url) return null;
   try {
-    const parsed = new URL(url);
-    // Remove 'www.' prefix for cleaner matching
-    return parsed.hostname.replace(/^www\./, '');
+    return new URL(url).hostname.replace(/^www\./, '');
   } catch {
-    // Try to parse from window title patterns like "Something - domain.com"
-    const match = url.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/);
-    return match ? match[1] : null;
+    const m = url.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/);
+    return m ? m[1] : null;
   }
 }
 
-/**
- * Check if an app name is a known browser.
- */
 export function isBrowser(app_name: string | null): boolean {
   if (!app_name) return false;
-  return BROWSER_APP_NAMES.some((b) =>
-    app_name.toLowerCase().includes(b.toLowerCase())
-  );
+  return BROWSER_APP_NAMES.some((b) => app_name.toLowerCase().includes(b.toLowerCase()));
 }
 
-// ─── Main poll function ───────────────────────────────────────────────────────
+// ─── Single unified AppleScript ───────────────────────────────────────────────
+//
+// Returns "appName|||windowTitle|||browserUrl" in ONE exec() call.
+// Previously this was 2 separate subprocess spawns (one for app/title, one
+// for browser URL). Merging them saves 100-200 ms of fork+exec overhead per
+// poll when the active app is a browser.
+
+function buildUnifiedScript(enableBrowserTracking: boolean): string {
+  const browserBlock = enableBrowserTracking ? `
+    set browserNames to {"Safari", "Google Chrome", "Arc", "Brave Browser", "Microsoft Edge", "Chromium", "Opera", "Vivaldi"}
+    repeat with bName in browserNames
+      if appName contains bName then
+        try
+          if appName contains "Safari" then
+            tell application "Safari"
+              if (count of windows) > 0 then
+                set browserUrl to URL of current tab of front window
+              end if
+            end tell
+          else if appName is "Arc" then
+            tell application "Arc"
+              if (count of windows) > 0 then
+                set browserUrl to URL of active tab of front window
+              end if
+            end tell
+          else if appName contains "Brave" then
+            tell application "Brave Browser"
+              if (count of windows) > 0 then
+                set browserUrl to URL of active tab of front window
+              end if
+            end tell
+          else if appName contains "Edge" then
+            tell application "Microsoft Edge"
+              if (count of windows) > 0 then
+                set browserUrl to URL of active tab of front window
+              end if
+            end tell
+          else if appName contains "Chrome" or appName contains "Chromium" then
+            tell application "Google Chrome"
+              if (count of windows) > 0 then
+                set browserUrl to URL of active tab of front window
+              end if
+            end tell
+          end if
+        end try
+        exit repeat
+      end if
+    end repeat
+  ` : '';
+
+  return `
+try
+  tell application "System Events"
+    set frontApp to first application process whose frontmost is true
+    set appName to name of frontApp
+    set winTitle to ""
+    try
+      set winTitle to name of front window of frontApp
+    end try
+    set browserUrl to ""
+    ${browserBlock}
+    return appName & "|||" & winTitle & "|||" & browserUrl
+  end tell
+on error
+  return "|||"
+end try
+`;
+}
+
+function shellEscape(s: string): string {
+  return s.replace(/'/g, "'\"'\"'");
+}
+
+// ─── Main capture function ────────────────────────────────────────────────────
 
 /**
  * Capture the current system activity snapshot.
- * This is the main entry point called by the activity tracker poll loop.
+ *
+ * Performance profile (per poll):
+ *  • 0 subprocesses when idle  (powerMonitor is synchronous, in-process)
+ *  • 1 subprocess when active  (unified AppleScript — was 2 previously)
  */
 export async function captureActivity(
-  idleThresholdSeconds: number,
-  enableBrowserTracking: boolean
+  idleThresholdSeconds:  number,
+  enableBrowserTracking: boolean,
 ): Promise<RawActivity> {
-  // Run these in parallel for speed
-  const [appInfo, idleSeconds] = await Promise.all([
-    getFrontmostApp(),
-    getIdleSeconds(),
-  ]);
+  // Idle time: synchronous, in-process, free. No subprocess needed.
+  const idleSeconds = powerMonitor.getSystemIdleTime();
+  const isIdle      = idleSeconds >= idleThresholdSeconds;
 
-  const isIdle = idleSeconds >= idleThresholdSeconds;
-
-  let browser_url: string | null = null;
-  let browser_domain: string | null = null;
-
-  // Only fetch browser URL if not idle and browser tracking is enabled
-  if (!isIdle && enableBrowserTracking && isBrowser(appInfo.app_name)) {
-    browser_url = await getBrowserUrl(appInfo.app_name!);
-    browser_domain = extractDomain(browser_url);
-
-    // Fallback: try to extract domain from window title
-    if (!browser_domain && appInfo.window_title) {
-      browser_domain = extractDomainFromTitle(appInfo.window_title);
-    }
+  // When idle, skip AppleScript entirely — saves an entire subprocess spawn.
+  if (isIdle) {
+    return { app_name: null, window_title: null, browser_url: null, browser_domain: null, idle_seconds: idleSeconds, is_idle: true };
   }
 
-  return {
-    app_name: appInfo.app_name,
-    window_title: appInfo.window_title,
-    browser_url,
-    browser_domain,
-    idle_seconds: idleSeconds,
-    is_idle: isIdle,
-  };
+  // One script gets everything: app name, window title, and browser URL.
+  const script  = buildUnifiedScript(enableBrowserTracking);
+  const escaped = shellEscape(script);
+
+  try {
+    const { stdout } = await execAsync(`osascript -e '${escaped}'`, { timeout: 3_000 });
+    const parts = stdout.trim().split('|||');
+
+    const app_name     = parts[0]?.trim() || null;
+    const window_title = parts[1]?.trim() || null;
+    const raw_url      = parts[2]?.trim() || null;
+    const browser_url  = (raw_url && raw_url.startsWith('http')) ? raw_url : null;
+    const browser_domain = browser_url
+      ? extractDomain(browser_url)
+      : (app_name && isBrowser(app_name) && window_title)
+        ? extractDomainFromTitle(window_title)
+        : null;
+
+    return { app_name, window_title, browser_url, browser_domain, idle_seconds: idleSeconds, is_idle: false };
+  } catch {
+    // Script timed out or AppleScript permissions denied — return minimal stub.
+    return { app_name: null, window_title: null, browser_url: null, browser_domain: null, idle_seconds: idleSeconds, is_idle: false };
+  }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Internal helpers ─────────────────────────────────────────────────────────
 
-/**
- * Try to extract a domain from a browser window title.
- * Many browsers append the domain or site name to the tab title.
- * e.g. "GitHub - stackoverflow.com" or "Twitter / X"
- */
 function extractDomainFromTitle(title: string): string | null {
-  // Pattern: "Something | domain.com" or "Something - domain.com"
-  const domainPattern = /[-|–]\s*([a-zA-Z0-9-]+\.[a-zA-Z]{2,})(\s|$)/;
-  const match = title.match(domainPattern);
-  if (match) {
-    return match[1].replace(/^www\./, '');
-  }
-  return null;
-}
-
-/**
- * Escape single quotes in AppleScript strings.
- */
-function escapeAppleScript(script: string): string {
-  // We're using shell substitution with single quotes, so we need to
-  // handle single quotes carefully. Replace ' with '"'"'
-  return script.replace(/'/g, "'\"'\"'");
+  const m = title.match(/[-|–]\s*([a-zA-Z0-9-]+\.[a-zA-Z]{2,})(\s|$)/);
+  return m ? m[1].replace(/^www\./, '') : null;
 }

@@ -1,6 +1,4 @@
-import { ipcMain } from 'electron';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { ipcMain, desktopCapturer } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import {
   createSession,
@@ -36,8 +34,6 @@ import { generateSessionSummary, analyzeScreenshot, checkAiStatus } from '../llm
 import { invalidateClassificationCache } from '../analytics/distractionClassifier';
 import type { IpcResponse, SessionReport, DayPlan } from '../../shared/types';
 
-const execAsync = promisify(exec);
-
 // Helper to wrap handler responses
 function ok<T>(data: T): IpcResponse<T> {
   return { success: true, data };
@@ -46,18 +42,20 @@ function err(error: string): IpcResponse<never> {
   return { success: false, error };
 }
 
-// ─── Screenshot helper ────────────────────────────────────────────────────────
+// ─── Screenshot helper (in-process, zero subprocesses) ───────────────────────
 
-async function takeScreenshot(): Promise<string | null> {
+async function takeScreenshot(): Promise<{ data: string; mimeType: 'image/jpeg' } | null> {
   try {
-    const tmpPath = `/tmp/focus-snap-${Date.now()}.png`;
-    // -x = no sound, -t png, capture main display
-    await execAsync(`screencapture -x -t png -m "${tmpPath}"`, { timeout: 5000 });
-    const { stdout } = await execAsync(`base64 "${tmpPath}"`, { timeout: 3000 });
-    await execAsync(`rm "${tmpPath}"`);
-    return stdout.trim();
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1280, height: 800 },
+    });
+    if (!sources.length) return null;
+    const jpeg = sources[0].thumbnail.toJPEG(90);
+    if (!jpeg || jpeg.length === 0) return null;
+    return { data: jpeg.toString('base64'), mimeType: 'image/jpeg' };
   } catch (e) {
-    console.warn('[Screenshot] Failed to capture:', e);
+    console.warn('[Screenshot] desktopCapturer failed:', e);
     return null;
   }
 }
@@ -104,7 +102,7 @@ export function registerIpcHandlers(): void {
         try {
           const screenshot = await takeScreenshot();
           if (screenshot) {
-            const description = await analyzeScreenshot(settings, screenshot);
+            const description = await analyzeScreenshot(settings, screenshot.data, screenshot.mimeType);
             if (description) {
               addVisionSnapshot(args.session_id, `[Session end] ${description}`);
             }
@@ -233,7 +231,7 @@ export function registerIpcHandlers(): void {
       const screenshot = await takeScreenshot();
       if (!screenshot) return err('Failed to capture screenshot');
 
-      const description = await analyzeScreenshot(settings, screenshot);
+      const description = await analyzeScreenshot(settings, screenshot.data, screenshot.mimeType);
       if (!description) return err('Vision model returned no description');
 
       const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });

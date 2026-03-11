@@ -16,11 +16,11 @@ import { formatDuration, focusScore } from '../analytics/sessionAnalyzer';
 // ─── Vision prompt ────────────────────────────────────────────────────────────
 
 const VISION_PROMPT =
-  'Analyze this screenshot of someone\'s computer screen. In 2-3 sentences describe: ' +
-  '(1) what application or tool is open and in focus, ' +
-  '(2) what specific content, file, document, or webpage is visible, ' +
-  '(3) what type of work this represents (e.g. writing code, reviewing a PR, reading documentation, designing, writing, browsing news, etc.). ' +
-  'Be specific and factual. Do not speculate beyond what is clearly visible.';
+  'Analyze this screenshot of a computer screen. Respond in 2-3 sentences that describe:\n' +
+  '1. The exact application open and what the user is actively doing (be precise — e.g. "writing a React component in VS Code", not just "coding").\n' +
+  '2. The specific content visible: file name, document title, article headline, video title, website name, or any readable text that identifies what they are working on.\n' +
+  '3. Whether this looks productive, neutral, or distracting, and why.\n' +
+  'Read visible text literally — titles, filenames, headlines, code identifiers — and include them in your answer. Be factual and concise.';
 
 // ─── System prompt (language model) ──────────────────────────────────────────
 
@@ -260,7 +260,8 @@ async function generateClaude(
 async function analyzeScreenshotClaude(
   apiKey: string,
   model: string,
-  screenshotBase64: string
+  screenshotBase64: string,
+  mimeType: 'image/jpeg' | 'image/png' = 'image/jpeg'
 ): Promise<string | null> {
   try {
     const client = new Anthropic({ apiKey });
@@ -273,7 +274,7 @@ async function analyzeScreenshotClaude(
           content: [
             {
               type: 'image',
-              source: { type: 'base64', media_type: 'image/png', data: screenshotBase64 },
+              source: { type: 'base64', media_type: mimeType, data: screenshotBase64 },
             },
             { type: 'text', text: VISION_PROMPT },
           ],
@@ -317,7 +318,8 @@ async function generateOpenAI(
 async function analyzeScreenshotOpenAI(
   apiKey: string,
   model: string,
-  screenshotBase64: string
+  screenshotBase64: string,
+  mimeType: 'image/jpeg' | 'image/png' = 'image/jpeg'
 ): Promise<string | null> {
   try {
     const client = new OpenAI({ apiKey });
@@ -330,7 +332,7 @@ async function analyzeScreenshotOpenAI(
           content: [
             {
               type: 'image_url',
-              image_url: { url: `data:image/png;base64,${screenshotBase64}`, detail: 'low' },
+              image_url: { url: `data:${mimeType};base64,${screenshotBase64}`, detail: 'low' },
             },
             { type: 'text', text: VISION_PROMPT },
           ],
@@ -352,7 +354,8 @@ async function analyzeScreenshotOpenAI(
  */
 export async function analyzeScreenshot(
   settings: Settings,
-  screenshotBase64: string
+  screenshotBase64: string,
+  mimeType: 'image/jpeg' | 'image/png' = 'image/jpeg'
 ): Promise<string | null> {
   const provider: AiProvider = settings.ai_provider ?? 'ollama';
   const visionModel = settings.vision_model;
@@ -360,12 +363,11 @@ export async function analyzeScreenshot(
   if (!visionModel) return null;
 
   if (provider === 'ollama') {
-    // Default path: Ollama vision (qwen3-vl, llava, moondream, etc.)
     return analyzeScreenshotOllama(settings.ollama_endpoint, visionModel, screenshotBase64);
   } else if (provider === 'claude' && settings.claude_api_key) {
-    return analyzeScreenshotClaude(settings.claude_api_key, visionModel, screenshotBase64);
+    return analyzeScreenshotClaude(settings.claude_api_key, visionModel, screenshotBase64, mimeType);
   } else if (provider === 'openai' && settings.openai_api_key) {
-    return analyzeScreenshotOpenAI(settings.openai_api_key, visionModel, screenshotBase64);
+    return analyzeScreenshotOpenAI(settings.openai_api_key, visionModel, screenshotBase64, mimeType);
   }
 
   return null;

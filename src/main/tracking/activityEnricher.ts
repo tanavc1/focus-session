@@ -19,8 +19,8 @@ import type { AppContext, PageMetadata } from '../../shared/types';
 
 // ─── URL Metadata Cache ───────────────────────────────────────────────────────
 
-const CACHE_TTL_MS  = 10 * 60 * 1000; // 10 minutes
-const CACHE_MAX     = 200;
+const CACHE_TTL_MS  = 30 * 60 * 1000; // 30 minutes — metadata is stable
+const CACHE_MAX     = 500;
 
 interface CacheEntry { data: PageMetadata; ts: number }
 const _urlCache = new Map<string, CacheEntry>();
@@ -165,21 +165,35 @@ async function fetchHtml(url: string): Promise<string | null> {
  * Returns null for private/internal URLs or on any failure.
  * Never throws.
  */
+// Request coalescing: if a fetch for URL X is already in-flight, return the
+// same promise rather than spawning a duplicate network request.
+const _inFlight = new Map<string, Promise<PageMetadata | null>>();
+
 export async function fetchUrlMetadata(url: string): Promise<PageMetadata | null> {
   if (!url || isPrivateUrl(url)) return null;
 
   const cached = cacheGet(url);
   if (cached) return cached;
 
-  try {
-    const html = await fetchHtml(url);
-    if (!html) return null;
-    const meta = parseHtml(html);
-    cacheSet(url, meta);
-    return meta;
-  } catch {
-    return null;
-  }
+  // Return existing in-flight promise (deduplicates concurrent fetches for same URL).
+  if (_inFlight.has(url)) return _inFlight.get(url)!;
+
+  const promise = (async () => {
+    try {
+      const html = await fetchHtml(url);
+      if (!html) return null;
+      const meta = parseHtml(html);
+      cacheSet(url, meta);
+      return meta;
+    } catch {
+      return null;
+    } finally {
+      _inFlight.delete(url);
+    }
+  })();
+
+  _inFlight.set(url, promise);
+  return promise;
 }
 
 // ─── Window-title parsers ─────────────────────────────────────────────────────
