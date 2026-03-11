@@ -7,7 +7,7 @@
 
 import { Tray, Menu, nativeImage, app } from 'electron';
 import type { BrowserWindow } from 'electron';
-import type { Session, CurrentActivity } from '../../shared/types';
+import type { Session, CurrentActivity } from '../shared/types';
 
 let _tray:       Tray | null = null;
 let _win:        BrowserWindow | null = null;
