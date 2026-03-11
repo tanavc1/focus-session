@@ -166,7 +166,7 @@ export interface Settings {
 
   // Vision model (separate from language model)
   vision_enabled: boolean;
-  vision_model: string;        // e.g. 'qwen3-vl:8b', 'claude-sonnet-4-6', 'gpt-4o'
+  vision_model: string;        // e.g. 'minicpm-v:2.6', 'claude-sonnet-4-6', 'gpt-4o'
   // Screenshot timing is automatic (event-driven + 60s baseline) — not user-configurable
 
   // Notifications

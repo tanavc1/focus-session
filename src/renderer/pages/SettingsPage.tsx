@@ -450,7 +450,7 @@ function AiSettings() {
             <p className="text-xs text-slate-400 mb-1.5">Installed models (click to use as language model):</p>
             <div className="flex flex-wrap gap-1.5">
               {status.models.map((m) => {
-                const isVision = m.includes('vl') || m.includes('vision') || m.includes('llava') || m.includes('moondream');
+                const isVision = m.includes('minicpm') || m.includes('vl') || m.includes('vision') || m.includes('llava') || m.includes('moondream');
                 return (
                   <button
                     key={m}
@@ -501,21 +501,24 @@ function AiSettings() {
                 <>
                   <input
                     className="input font-mono"
-                    value={local.vision_model ?? 'qwen3-vl:8b'}
+                    value={local.vision_model ?? 'minicpm-v:2.6'}
                     onChange={(e) => setLocal((p) => ({ ...p, vision_model: e.target.value }))}
-                    placeholder="qwen3-vl:8b"
+                    placeholder="minicpm-v:2.6"
                   />
                   <p className="text-xs text-slate-500 mt-1">
-                    Any Ollama vision model works: <code className="font-mono">qwen3-vl:8b</code> (installed) ·{' '}
-                    <code className="font-mono">llava:7b</code> · <code className="font-mono">moondream</code>
+                    Recommended: <code className="font-mono">minicpm-v:2.6</code> (~5.5 GB, best screen reading) ·{' '}
+                    <code className="font-mono">llava-phi3</code> (~2.9 GB, lighter)
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Pull with: <code className="font-mono">ollama pull minicpm-v:2.6</code>
                   </p>
                   {/* Click-to-select from installed models */}
                   {status?.models && status.models.filter(m =>
-                    m.includes('vl') || m.includes('vision') || m.includes('llava') || m.includes('moondream')
+                    m.includes('minicpm') || m.includes('vl') || m.includes('vision') || m.includes('llava') || m.includes('moondream')
                   ).length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {status.models
-                        .filter(m => m.includes('vl') || m.includes('vision') || m.includes('llava') || m.includes('moondream'))
+                        .filter(m => m.includes('minicpm') || m.includes('vl') || m.includes('vision') || m.includes('llava') || m.includes('moondream'))
                         .map((m) => (
                           <button
                             key={m}

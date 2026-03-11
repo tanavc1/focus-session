@@ -81,10 +81,12 @@ Three options — all optional:
 ```bash
 brew install ollama
 ollama serve
-ollama pull phi4-mini          # text summaries
-ollama pull qwen3-vl:8b        # vision analysis (optional)
+ollama pull phi4-mini          # text summaries (~2.5 GB)
+ollama pull minicpm-v:2.6      # vision analysis — reads screen text accurately (~5.5 GB)
 ```
 Configure in **Settings → AI**. No API key needed.
+
+> **Lighter alternative:** `ollama pull llava-phi3` (~2.9 GB) if disk space is tight. Less accurate at reading on-screen text but usable.
 
 ### Claude (Anthropic)
 Add your API key in **Settings → AI → Claude**. Uses `claude-sonnet-4-6` by default.
@@ -120,7 +122,7 @@ npm run make       # produces Focus.dmg in out/make/
 → Right-click the app → Open → click Open again. This is a one-time Gatekeeper bypass for unsigned apps from outside the App Store.
 
 **Vision analysis not working**
-→ Make sure Ollama is running (`ollama serve`) and a vision model is pulled (`ollama pull qwen3-vl:8b`). Check Settings → AI → Test Connection.
+→ Make sure Ollama is running (`ollama serve`) and the vision model is pulled (`ollama pull minicpm-v:2.6`). Check **Settings → AI → Test Connection**. If you see the model listed there, click it to set it as your vision model.
 
 **AI report not generating**
 → For Ollama: ensure it's running. For Claude/OpenAI: verify your API key format (Claude: `sk-ant-...`, OpenAI: `sk-...`).

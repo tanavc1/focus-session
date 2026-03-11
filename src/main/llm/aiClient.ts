@@ -3,7 +3,7 @@
  * Supports: Ollama (local, default), Anthropic Claude, OpenAI.
  * Handles both text (language) models and vision models.
  *
- * Vision works out-of-the-box via Ollama (qwen3-vl:8b installed locally).
+ * Vision works out-of-the-box via Ollama (minicpm-v:2.6 recommended — best screen/text reading).
  * Claude/OpenAI vision are optional overrides when API keys are configured.
  */
 
@@ -167,7 +167,7 @@ export async function listOllamaModels(endpoint: string): Promise<string[]> {
 
 /**
  * Analyze a screenshot using an Ollama vision model (chat API with images array).
- * Works with qwen3-vl, llava, moondream, etc.
+ * Works with minicpm-v, llava, llava-phi3, etc.
  */
 async function analyzeScreenshotOllama(
   endpoint: string,

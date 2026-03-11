@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Vision (Ollama-based by default — free and local)
   // Screenshots are taken automatically: on every context change + every 3 min baseline.
   vision_enabled: true,
-  vision_model: 'qwen3-vl:8b',    // installed Ollama vision model
+  vision_model: 'minicpm-v:2.6',  // best screen/text reading in its size class (~5.5 GB)
 
   // Notifications
   enable_focus_notifications: true,
