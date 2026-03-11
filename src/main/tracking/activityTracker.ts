@@ -2,8 +2,8 @@
  * Activity Tracker — smart polling engine.
  *
  * Performance design:
- *  • desktopCapturer replaces screencapture+sips+base64+rm (3 subprocesses → 0).
- *    Screenshots are taken in-process with no temp files and no disk I/O.
+ *  • screencapture CLI (subprocess) replaces desktopCapturer to avoid blocking
+ *    the Electron main thread and causing Mac freezes.
  *  • macosTracker uses powerMonitor + unified AppleScript (see macosTracker.ts).
  *  • Post-idle cooldown: 30 s after returning from idle before any vision capture,
  *    so the burst of context-change events on resumption doesn't trigger back-to-back
@@ -13,7 +13,12 @@
  *  • Settings cached 60 s so the poll loop never hits the DB for config.
  */
 
-import { BrowserWindow, Notification, desktopCapturer } from 'electron';
+import { BrowserWindow, Notification } from 'electron';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import os from 'os';
+
+const execAsync = promisify(exec);
 import { captureActivity } from './macosTracker';
 import { insertActivityEvent, getAllSettings, addVisionSnapshot } from '../database/db';
 import { classifyActivity } from '../analytics/distractionClassifier';
@@ -78,6 +83,7 @@ interface TrackerState {
 
   wasIdleLastPoll: boolean;
   idleResumedAt:   number | null;
+  lastIdleSeconds: number;
 }
 
 const state: TrackerState = {
@@ -107,30 +113,37 @@ const state: TrackerState = {
 
   wasIdleLastPoll: false,
   idleResumedAt:   null,
+  lastIdleSeconds: 0,
 };
 
-// ─── In-process screenshot (zero subprocesses) ───────────────────────────────
+// ─── CPU load check ───────────────────────────────────────────────────────────
+
+function isCpuOverloaded(): boolean {
+  // Skip vision when system load is high to prevent Mac from freezing
+  const loadAvg = os.loadavg()[0];
+  const cpuCount = os.cpus().length;
+  return loadAvg / cpuCount > 0.75;
+}
+
+// ─── Screenshot via CLI (avoids blocking main thread) ─────────────────────────
 //
-// desktopCapturer.getSources() is a main-process Electron API that captures
-// the screen natively. It replaces the old pipeline of:
-//   screencapture (subprocess 1) → sips resize (subprocess 2) → base64 (subprocess 3) → rm
-// With a single in-process call that returns a NativeImage directly.
-// JPEG at quality 90: lossless enough for text/code, 3-5× smaller than PNG.
+// Uses screencapture CLI in a subprocess so it never blocks the Electron
+// main thread. This replaces desktopCapturer which caused Mac freezes.
 
-async function takeScreenshot(): Promise<{ data: string; mimeType: 'image/jpeg' } | null> {
+async function takeScreenshot(): Promise<{ data: string; mimeType: 'image/png' } | null> {
+  if (isCpuOverloaded()) {
+    console.log('[Vision] CPU overloaded - skipping screenshot');
+    return null;
+  }
+  const tmp = `/tmp/fs-${Date.now()}.png`;
   try {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: 1280, height: 800 },
-    });
-    if (!sources.length) return null;
-
-    const jpeg = sources[0].thumbnail.toJPEG(90);
-    if (!jpeg || jpeg.length === 0) return null;
-
-    return { data: jpeg.toString('base64'), mimeType: 'image/jpeg' };
-  } catch (err) {
-    console.warn('[Vision] desktopCapturer failed:', err);
+    await execAsync(`screencapture -x -m -t png "${tmp}"`, { timeout: 4_000 });
+    await execAsync(`sips -Z 900 "${tmp}" --out "${tmp}"`, { timeout: 3_000 });
+    const { stdout } = await execAsync(`base64 -i "${tmp}"`, { timeout: 2_000 });
+    execAsync(`rm -f "${tmp}"`).catch(() => {});
+    return { data: stdout.trim(), mimeType: 'image/png' };
+  } catch {
+    execAsync(`rm -f "${tmp}"`).catch(() => {});
     return null;
   }
 }
@@ -161,11 +174,12 @@ export function startTracking(sessionId: string): void {
     unchangedPollCount:          0,
     wasIdleLastPoll:             false,
     idleResumedAt:               null,
+    lastIdleSeconds:             0,
   });
 
   console.log(`[Tracker] Starting session ${sessionId}`);
   console.log(`[Tracker] Poll: ${settings.tracking_interval_ms} ms | Vision: ${settings.vision_enabled ? settings.vision_model : 'off'}`);
-  console.log('[Tracker] Screenshot engine: desktopCapturer (zero subprocesses, no disk I/O)');
+  console.log('[Tracker] Screenshot engine: screencapture CLI (subprocess, non-blocking)');
 
   poll(sessionId, settings.idle_threshold_seconds, settings.enable_browser_tracking);
   state.intervalHandle = setInterval(
@@ -196,6 +210,7 @@ export function stopTracking(): void {
     unchangedPollCount:          0,
     wasIdleLastPoll:             false,
     idleResumedAt:               null,
+    lastIdleSeconds:             0,
   });
   console.log('[Tracker] Stopped');
 }
@@ -228,7 +243,7 @@ function captureAndAnalyzeAsync(sessionId: string, trigger: 'context-change' | '
       const settings = getCachedSettings();
       if (!settings.vision_enabled || !settings.vision_model) return;
 
-      const description = await analyzeScreenshot(settings, shot.data, shot.mimeType);
+      const description = await analyzeScreenshot(settings, shot.data, shot.mimeType as 'image/png' | 'image/jpeg');
       if (!description) return;
 
       state.lastVisionDescription = description;
@@ -261,6 +276,9 @@ async function poll(
       state.idleResumedAt = Date.now();
       console.log('[Tracker] Resumed from idle — 30 s vision cooldown active');
     }
+
+    // ── Idle seconds tracking (for accurate idle detection) ──────────────────
+    state.lastIdleSeconds = raw.idle_seconds ?? 0;
 
     // ── DB write (deduplicated) ──────────────────────────────────────────────
     const eventKey       = `${raw.app_name}::${raw.window_title}::${raw.browser_domain}::${raw.is_idle ? 1 : 0}`;

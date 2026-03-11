@@ -22,7 +22,7 @@ const api = {
     ipcRenderer.invoke('session:start', data) as Promise<IpcResponse<Session>>,
 
   endSession: (session_id: string) =>
-    ipcRenderer.invoke('session:end', { session_id }) as Promise<IpcResponse<Session>>,
+    ipcRenderer.invoke('session:end', { session_id }) as Promise<IpcResponse<Session | null>>,
 
   getCurrentSession: () =>
     ipcRenderer.invoke('session:current') as Promise<IpcResponse<Session | null>>,
@@ -126,6 +126,18 @@ const api = {
     const listener = () => callback();
     ipcRenderer.on('tray:request-quick-start', listener);
     return () => ipcRenderer.removeListener('tray:request-quick-start', listener);
+  },
+
+  onSessionSuspended: (cb: () => void) => {
+    const sub = (_: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('session:suspended', sub);
+    return () => ipcRenderer.removeListener('session:suspended', sub);
+  },
+
+  onSessionResumed: (cb: () => void) => {
+    const sub = (_: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('session:resumed', sub);
+    return () => ipcRenderer.removeListener('session:resumed', sub);
   },
 };
 

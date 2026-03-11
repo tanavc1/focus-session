@@ -166,6 +166,28 @@ function heuristicClassify(
   return null;
 }
 
+// ─── Dwell-time adjusted classification ──────────────────────────────────────
+
+/**
+ * Adjust classification based on how long the user has been at an activity.
+ * Short visits to distracting sites are less damaging than long ones.
+ * Long visits to neutral sites might actually be productive (deep reading, etc.)
+ */
+export function adjustClassificationByDwell(
+  classification: ClassificationType,
+  dwellSeconds: number
+): ClassificationType {
+  // Very short visits (< 15s) - likely just passing through
+  if (dwellSeconds < 15) {
+    if (classification === 'distracting') return 'neutral'; // brief check ≠ distraction
+  }
+  // Long dwell (> 5 min) on neutral → could be productive
+  if (dwellSeconds > 300 && classification === 'neutral') {
+    return 'productive'; // Reading/working deeply
+  }
+  return classification;
+}
+
 // ─── Session-goal-aware reclassification ─────────────────────────────────────
 
 /**

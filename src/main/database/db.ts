@@ -198,6 +198,13 @@ export function endSession(id: string): void {
   `).run(Date.now(), id);
 }
 
+export function deleteSession(id: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM activity_events WHERE session_id = ?').run(id);
+  db.prepare('DELETE FROM activity_blocks WHERE session_id = ?').run(id);
+  db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+}
+
 export function listSessions(limit = 50): Session[] {
   const db = getDb();
   return db.prepare(

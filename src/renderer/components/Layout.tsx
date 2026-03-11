@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Home, TrendingUp, Settings, Zap, Flame } from 'lucide-react';
 import { useAppStore } from '../store/useStore';
@@ -9,6 +9,7 @@ import type { SpotifyTrack } from '../../shared/types';
 export default function Layout() {
   const { activeSession, streak, setSpotifyTrack } = useAppStore();
   const { quickStartSession, endSession } = useSessionControl();
+  const [sessionPaused, setSessionPaused] = useState(false);
 
   // Subscribe to Spotify updates
   useEffect(() => {
@@ -34,6 +35,27 @@ export default function Layout() {
     });
   }, [quickStartSession, activeSession]);
 
+  // Lid close / system suspend → pause indicator
+  useEffect(() => {
+    const unsubSuspend = window.api.onSessionSuspended(() => setSessionPaused(true));
+    const unsubResume  = window.api.onSessionResumed(() => setSessionPaused(false));
+    return () => { unsubSuspend(); unsubResume(); };
+  }, []);
+
+  // Clear paused state when session ends
+  useEffect(() => {
+    if (!activeSession) setSessionPaused(false);
+  }, [activeSession]);
+
+  const sessionIcon = useMemo(() => (
+    <div className="relative">
+      <Zap size={18} />
+      {activeSession && (
+        <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse-slow" />
+      )}
+    </div>
+  ), [activeSession]);
+
   return (
     <div className="flex flex-col h-screen bg-slate-900">
       {/* macOS titlebar drag region */}
@@ -43,21 +65,14 @@ export default function Layout() {
 
       {/* Live session status bar */}
       {activeSession && (
-        <LiveSessionBar title={activeSession.title} startedAt={activeSession.started_at} />
+        <LiveSessionBar title={activeSession.title} startedAt={activeSession.started_at} paused={sessionPaused} />
       )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <aside className="w-[72px] flex flex-col items-center py-3 bg-slate-900 border-r border-slate-800/80 gap-1 no-drag">
           <NavItem to="/"           icon={<Home size={18} />}       label="Today"   />
-          <NavItem to="/session/active" icon={
-            <div className="relative">
-              <Zap size={18} />
-              {activeSession && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse-slow" />
-              )}
-            </div>
-          } label="Session" />
+          <NavItem to="/session/active" icon={sessionIcon} label="Session" />
           <NavItem to="/journey"    icon={<TrendingUp size={18} />} label="Journey" />
 
           {/* Spacer */}
@@ -94,7 +109,7 @@ export default function Layout() {
 
 // ─── Live session bar ─────────────────────────────────────────────────────────
 
-function LiveSessionBar({ title, startedAt }: { title: string; startedAt: number }) {
+function LiveSessionBar({ title, startedAt, paused = false }: { title: string; startedAt: number; paused?: boolean }) {
   const [elapsed, setElapsed] = useState(0);
   const navigate = useNavigate();
   const { currentActivity, spotifyTrack } = useAppStore();
@@ -107,6 +122,22 @@ function LiveSessionBar({ title, startedAt }: { title: string; startedAt: number
   }, [startedAt]);
 
   const inFlow = currentActivity?.in_flow;
+
+  if (paused) {
+    return (
+      <div
+        className="no-drag flex items-center gap-3 px-4 py-2 border-b cursor-pointer transition-colors bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70"
+        onClick={() => navigate('/session/active')}
+      >
+        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-slate-500" />
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Paused · Lid closed</span>
+        <span className="text-xs text-slate-500 truncate flex-1">{title}</span>
+        <span className="text-xs font-mono text-slate-500 flex-shrink-0 tabular-nums">
+          {formatElapsed(elapsed)}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -152,14 +183,14 @@ function formatElapsed(seconds: number): string {
 
 // ─── Nav item ─────────────────────────────────────────────────────────────────
 
-function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) {
+const NavItem = React.memo(function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) {
   return (
     <NavLink
       to={to}
       title={label}
       end={to === '/'}
       className={({ isActive }) =>
-        `w-12 h-12 flex flex-col items-center justify-center gap-0.5 rounded-xl transition-colors duration-150 ${
+        `w-12 h-12 flex flex-col items-center justify-center gap-0.5 rounded-xl transition-all duration-100 ${
           isActive
             ? 'bg-brand-600/90 text-white'
             : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
@@ -170,7 +201,7 @@ function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label
       <span className="text-[9px] font-medium leading-none opacity-80">{label}</span>
     </NavLink>
   );
-}
+});
 
 // ─── Spotify icon ─────────────────────────────────────────────────────────────
 

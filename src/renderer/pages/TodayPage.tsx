@@ -407,6 +407,22 @@ export default function TodayPage() {
           <p className="text-slate-700 text-xs">Start a session above or plan your day.</p>
         </div>
       )}
+
+      {/* Plan tomorrow nudge — shown after 6 PM */}
+      {new Date().getHours() >= 18 && !activeSession && (
+        <button
+          onClick={() => navigate('/plan?date=tomorrow')}
+          className="w-full flex items-center gap-3 p-3 bg-slate-800/40 border border-amber-800/30 rounded-xl transition-colors hover:bg-slate-800/60 text-left"
+        >
+          <div className="w-8 h-8 rounded-lg bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+            <span className="text-base">🌙</span>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-200">Plan tomorrow</p>
+            <p className="text-xs text-slate-500 mt-0.5">Set goals before the day starts.</p>
+          </div>
+        </button>
+      )}
     </div>
   );
 }

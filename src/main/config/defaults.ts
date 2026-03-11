@@ -69,6 +69,24 @@ export const DEFAULT_CLASSIFICATIONS: Omit<AppClassification, 'id'>[] = [
   { pattern: 'figma.com',        pattern_type: 'domain', classification: 'productive', reason: 'Design tool',        is_default: 1 },
   { pattern: 'vercel.com',       pattern_type: 'domain', classification: 'productive', reason: 'Deployment',         is_default: 1 },
 
+  // ── AI assistants (highly productive when used for work) ─────────────────
+  { pattern: 'chat.openai.com', pattern_type: 'domain', classification: 'productive', reason: 'AI assistant', is_default: 1 },
+  { pattern: 'chatgpt.com',     pattern_type: 'domain', classification: 'productive', reason: 'AI assistant', is_default: 1 },
+  { pattern: 'claude.ai',       pattern_type: 'domain', classification: 'productive', reason: 'AI assistant', is_default: 1 },
+  { pattern: 'perplexity.ai',   pattern_type: 'domain', classification: 'productive', reason: 'AI research',  is_default: 1 },
+  { pattern: 'gemini.google.com', pattern_type: 'domain', classification: 'productive', reason: 'AI assistant', is_default: 1 },
+  { pattern: 'phind.com',       pattern_type: 'domain', classification: 'productive', reason: 'AI coding',    is_default: 1 },
+  { pattern: 'cursor.sh',       pattern_type: 'domain', classification: 'productive', reason: 'AI coding',    is_default: 1 },
+  // ── More productive domains ───────────────────────────────────────────────
+  { pattern: 'loom.com',        pattern_type: 'domain', classification: 'productive', reason: 'Video communication', is_default: 1 },
+  { pattern: 'excalidraw.com',  pattern_type: 'domain', classification: 'productive', reason: 'Diagramming', is_default: 1 },
+  { pattern: 'miro.com',        pattern_type: 'domain', classification: 'productive', reason: 'Whiteboarding', is_default: 1 },
+  { pattern: 'airtable.com',    pattern_type: 'domain', classification: 'productive', reason: 'Data management', is_default: 1 },
+  { pattern: 'jira.atlassian',  pattern_type: 'domain', classification: 'productive', reason: 'Project management', is_default: 1 },
+  { pattern: 'confluence',      pattern_type: 'domain', classification: 'productive', reason: 'Documentation', is_default: 1 },
+  { pattern: 'trello.com',      pattern_type: 'domain', classification: 'productive', reason: 'Project management', is_default: 1 },
+  { pattern: 'asana.com',       pattern_type: 'domain', classification: 'productive', reason: 'Task management', is_default: 1 },
+
   // ── Productive apps ───────────────────────────────────────────────────────
   { pattern: 'Code',             pattern_type: 'app', classification: 'productive', reason: 'VS Code',               is_default: 1 },
   { pattern: 'Visual Studio Code',pattern_type:'app', classification: 'productive', reason: 'VS Code',               is_default: 1 },

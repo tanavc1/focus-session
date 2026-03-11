@@ -58,8 +58,13 @@ export function useSessionControl() {
   const endSession = useCallback(
     async (session_id: string) => {
       const res = await window.api.endSession(session_id);
-      if (res.success && res.data) {
+      if (res.success) {
         setActiveSession(null);
+        // null data means session was auto-deleted (too short)
+        if (!res.data) {
+          navigate('/');
+          return null;
+        }
         navigate(`/session/${session_id}/report`);
         return res.data;
       } else {

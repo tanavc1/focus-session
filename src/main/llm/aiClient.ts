@@ -35,6 +35,7 @@ Your role is to analyze a user's work session data and provide:
 2. Specific, actionable coaching suggestions based on the actual data
 
 Guidelines:
+- Start your summary with 1-2 sentences describing specifically what the user worked on and accomplished, based on the available data.
 - Be direct and data-driven. Reference specific numbers from the session.
 - Don't be generic. Tailor advice to the specific patterns you see.
 - If the session was good, say so clearly and explain why.
@@ -96,7 +97,7 @@ ${topDomains ? `TOP WEBSITES VISITED:\n${topDomains}\n` : ''}
 ${diversions ? `DISTRACTION EVENTS (>30s each):\n${diversions}\n` : ''}`;
 
   if (visionSnapshots && visionSnapshots.length > 0) {
-    prompt += `\nVISUAL CONTEXT (periodic screen snapshots describing what was actually on screen):
+    prompt += `\nVISUAL CONTEXT (periodic screen snapshots — use these to identify WHAT SPECIFICALLY was being worked on: file names, document titles, features, code identifiers, etc.):
 ${visionSnapshots.map((s, i) => `  [${i + 1}] ${s}`).join('\n')}
 `;
   }
@@ -192,7 +193,7 @@ async function analyzeScreenshotOllama(
     }>(
       `${endpoint}/api/chat`,
       payload,
-      { timeout: 90_000 }
+      { timeout: 30_000 }
     );
 
     const content = response.data?.message?.content?.trim();
@@ -224,7 +225,7 @@ async function generateOllama(
     const response = await axios.post<{ message: { content: string } }>(
       `${endpoint}/api/chat`,
       payload,
-      { timeout: 120_000 }
+      { timeout: 60_000 }
     );
     return response.data?.message?.content?.trim() ?? null;
   } catch (err) {

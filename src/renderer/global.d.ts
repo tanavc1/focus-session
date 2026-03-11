@@ -16,7 +16,7 @@ import type {
 // Type-safe window.api exposed by the preload script
 interface ElectronAPI {
   startSession: (data: { title: string; goal: string; target_duration?: number }) => Promise<IpcResponse<Session>>;
-  endSession: (session_id: string) => Promise<IpcResponse<Session>>;
+  endSession: (session_id: string) => Promise<IpcResponse<Session | null>>;
   getCurrentSession: () => Promise<IpcResponse<Session | null>>;
   getSession: (session_id: string) => Promise<IpcResponse<Session | null>>;
   listSessions: () => Promise<IpcResponse<Session[]>>;
@@ -39,6 +39,8 @@ interface ElectronAPI {
     message: string;
   }>>;
   getDayPlan: (date: string) => Promise<IpcResponse<DayPlan | null>>;
+  onSessionSuspended: (cb: () => void) => () => void;
+  onSessionResumed: (cb: () => void) => () => void;
   setDayPlan: (plan: Omit<DayPlan, 'created_at' | 'updated_at'>) => Promise<IpcResponse<DayPlan>>;
   getDayStats: (date: string) => Promise<IpcResponse<DayStats>>;
   getWeekStats: (end_date: string) => Promise<IpcResponse<WeekStats>>;

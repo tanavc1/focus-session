@@ -98,6 +98,11 @@ function makeBlock(
     goal
   );
 
+  // Brief distraction checks (< 30s) count as neutral — likely just passing through
+  if (classification === 'distracting' && duration_seconds < 30) {
+    classification = 'neutral';
+  }
+
   return {
     session_id: sessionId,
     started_at: startEvent.timestamp,

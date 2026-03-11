@@ -284,8 +284,18 @@ function AiSettings() {
                   : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600'
               }`}
             >
-              <div className="text-base mb-1">
-                {p === 'ollama' ? '🦙' : p === 'claude' ? '🤖' : '✨'}
+              <div className="flex items-center justify-center mb-1 h-5">
+                {p === 'ollama' ? (
+                  <span className="text-base">🦙</span>
+                ) : p === 'claude' ? (
+                  <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor" className="text-[#DA7756]">
+                    <path d="M17.304 12.444c.37-.882.498-1.818.36-2.709-.137-.892-.548-1.713-1.181-2.358a4.392 4.392 0 0 0-2.264-1.217 4.459 4.459 0 0 0-2.612.293L5.91 8.924l1.06 2.52 3.576-1.5a1.951 1.951 0 0 1 1.494-.032c.48.192.858.567 1.054 1.041a1.942 1.942 0 0 1-.034 1.487L9.5 17.9l2.52 1.06 3.48-8.284.064-.152.001-.003.739.31-.74-.31v.003l-.003.006-.012.031-.048.115-.181.433c-.156.374-.378.908-.624 1.507-.49 1.175-1.056 2.535-1.405 3.37l-.56 1.34 2.52 1.059.559-1.34c.348-.834.915-2.194 1.405-3.369.245-.588.465-1.115.623-1.49l.183-.437.053-.128.014-.034.004-.009.001-.002.001-.001v-.001a.017.017 0 0 1 .001-.003l-1.31-.549 1.31.549z"/>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor" className="text-slate-300">
+                    <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.677l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.843-3.369 2.019-1.168a.076.076 0 0 1 .071 0l4.83 2.786a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.4-.676zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/>
+                  </svg>
+                )}
               </div>
               <div className="capitalize">{p === 'ollama' ? 'Ollama' : p === 'claude' ? 'Claude' : 'OpenAI'}</div>
               <div className="text-xs mt-0.5 opacity-60">
@@ -335,18 +345,25 @@ function AiSettings() {
               <label className="label">Claude API Key</label>
               <div className="relative">
                 <input
-                  className="input pr-10"
+                  className="input pr-16"
                   type={showClaudeKey ? 'text' : 'password'}
                   value={local.claude_api_key ?? ''}
                   onChange={(e) => setLocal((p) => ({ ...p, claude_api_key: e.target.value }))}
                   placeholder="sk-ant-..."
                 />
-                <button
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                  onClick={() => setShowClaudeKey(!showClaudeKey)}
-                >
-                  {showClaudeKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                  {(local.claude_api_key ?? '').length > 5 && (
+                    (local.claude_api_key ?? '').startsWith('sk-ant-')
+                      ? <CheckCircle size={13} className="text-green-400" />
+                      : <XCircle size={13} className="text-red-400" />
+                  )}
+                  <button
+                    className="text-slate-500 hover:text-slate-300"
+                    onClick={() => setShowClaudeKey(!showClaudeKey)}
+                  >
+                    {showClaudeKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-slate-500 mt-1">Get your key at console.anthropic.com</p>
             </div>
@@ -372,18 +389,25 @@ function AiSettings() {
               <label className="label">OpenAI API Key</label>
               <div className="relative">
                 <input
-                  className="input pr-10"
+                  className="input pr-16"
                   type={showOpenAiKey ? 'text' : 'password'}
                   value={local.openai_api_key ?? ''}
                   onChange={(e) => setLocal((p) => ({ ...p, openai_api_key: e.target.value }))}
                   placeholder="sk-..."
                 />
-                <button
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                  onClick={() => setShowOpenAiKey(!showOpenAiKey)}
-                >
-                  {showOpenAiKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                  {(local.openai_api_key ?? '').length > 5 && (
+                    (local.openai_api_key ?? '').startsWith('sk-')
+                      ? <CheckCircle size={13} className="text-green-400" />
+                      : <XCircle size={13} className="text-red-400" />
+                  )}
+                  <button
+                    className="text-slate-500 hover:text-slate-300"
+                    onClick={() => setShowOpenAiKey(!showOpenAiKey)}
+                  >
+                    {showOpenAiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-slate-500 mt-1">Get your key at platform.openai.com</p>
             </div>

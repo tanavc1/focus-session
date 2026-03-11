@@ -1,4 +1,8 @@
-import { ipcMain, desktopCapturer } from 'electron';
+import { ipcMain } from 'electron';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import { v4 as uuidv4 } from 'uuid';
 import {
   createSession,
@@ -26,6 +30,7 @@ import {
   getTopAppsAllTime,
   getTopDistractionsAllTime,
   computeFlowPeriods,
+  deleteSession,
 } from '../database/db';
 import { startTracking, stopTracking, getCurrentActivity, invalidateSettingsCache } from '../tracking/activityTracker';
 import { setTraySession } from '../tray';
@@ -42,20 +47,18 @@ function err(error: string): IpcResponse<never> {
   return { success: false, error };
 }
 
-// ─── Screenshot helper (in-process, zero subprocesses) ───────────────────────
+// ─── Screenshot helper (CLI subprocess, non-blocking) ────────────────────────
 
-async function takeScreenshot(): Promise<{ data: string; mimeType: 'image/jpeg' } | null> {
+async function takeScreenshot(): Promise<{ data: string; mimeType: 'image/png' } | null> {
+  const tmp = `/tmp/focus-snap-${Date.now()}.png`;
   try {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: 1280, height: 800 },
-    });
-    if (!sources.length) return null;
-    const jpeg = sources[0].thumbnail.toJPEG(90);
-    if (!jpeg || jpeg.length === 0) return null;
-    return { data: jpeg.toString('base64'), mimeType: 'image/jpeg' };
-  } catch (e) {
-    console.warn('[Screenshot] desktopCapturer failed:', e);
+    await execAsync(`screencapture -x -m -t png "${tmp}"`, { timeout: 5_000 });
+    await execAsync(`sips -Z 900 "${tmp}" --out "${tmp}"`, { timeout: 3_000 });
+    const { stdout } = await execAsync(`base64 -i "${tmp}"`, { timeout: 3_000 });
+    execAsync(`rm -f "${tmp}"`).catch(() => {});
+    return { data: stdout.trim(), mimeType: 'image/png' };
+  } catch {
+    execAsync(`rm -f "${tmp}"`).catch(() => {});
     return null;
   }
 }
@@ -86,6 +89,15 @@ export function registerIpcHandlers(): void {
     try {
       const session = getSession(args.session_id);
       if (!session) return err('Session not found');
+
+      // Auto-delete sessions shorter than 30 seconds — nothing meaningful happened
+      const durationMs = Date.now() - session.started_at;
+      if (durationMs < 30_000) {
+        stopTracking();
+        deleteSession(args.session_id);
+        setTraySession(null);
+        return ok(null); // null signals "deleted, not completed" to renderer
+      }
 
       stopTracking();
       endSession(args.session_id);

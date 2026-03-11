@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, powerMonitor } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc/handlers';
 import { getActiveSession } from './database/db';
@@ -84,6 +84,29 @@ app.whenReady().then(() => {
   } catch (e) {
     console.error('[Main] Failed to check for active sessions:', e);
   }
+
+  // ── Lid close / system sleep → pause tracking ────────────────────────────
+  powerMonitor.on('suspend', () => {
+    console.log('[Power] System suspending — pausing active session tracking');
+    const session = getActiveSession();
+    if (session) {
+      stopTracking();
+      BrowserWindow.getAllWindows().forEach((w) => {
+        if (!w.isDestroyed()) w.webContents.send('session:suspended');
+      });
+    }
+  });
+
+  powerMonitor.on('resume', () => {
+    console.log('[Power] System resumed — resuming active session tracking');
+    const session = getActiveSession();
+    if (session) {
+      startTracking(session.id);
+      BrowserWindow.getAllWindows().forEach((w) => {
+        if (!w.isDestroyed()) w.webContents.send('session:resumed');
+      });
+    }
+  });
 
   app.on('activate', () => {
     // On macOS, recreate window when dock icon is clicked and no windows exist
