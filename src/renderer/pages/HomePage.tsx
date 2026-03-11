@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, ChevronRight, AlertCircle, Play, Target } from 'lucide-react';
+import { Zap, ChevronRight, AlertCircle, Play, Target, Sparkles, X } from 'lucide-react';
 import { format } from 'date-fns';
 import StartSessionModal from '../components/StartSessionModal';
 import { useAppStore } from '../store/useStore';
@@ -16,9 +16,11 @@ export default function HomePage() {
   const [allSessions, setAllSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isQuickStarting, setIsQuickStarting] = useState(false);
+  const [showAiSetup, setShowAiSetup] = useState(false);
 
   useEffect(() => {
     loadRecentSessions();
+    checkAiSetup();
   }, []);
 
   async function loadRecentSessions() {
@@ -30,6 +32,15 @@ export default function HomePage() {
       setAllSessions(res.data);
     }
     setIsLoading(false);
+  }
+
+  async function checkAiSetup() {
+    try {
+      const res = await window.api.checkLlmStatus();
+      if (res.success && res.data && !res.data.is_running) {
+        setShowAiSetup(true);
+      }
+    } catch { /* non-fatal */ }
   }
 
   async function handleQuickStart() {
@@ -149,6 +160,31 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {/* AI setup prompt — shown when no AI provider is reachable */}
+      {showAiSetup && (
+        <div className="rounded-xl border border-brand-700/40 bg-brand-950/25 p-4 flex items-start gap-3">
+          <Sparkles size={16} className="text-brand-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-200">Set up AI coaching</p>
+            <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+              Get personalised session reports. Paste a Claude or OpenAI API key for instant access, or run Ollama locally for free.
+            </p>
+            <button
+              onClick={() => navigate('/settings')}
+              className="mt-2 text-xs font-semibold text-brand-400 hover:text-brand-300 transition-colors"
+            >
+              Configure in Settings →
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAiSetup(false)}
+            className="text-slate-600 hover:text-slate-400 transition-colors flex-shrink-0"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {showModal && <StartSessionModal onClose={() => setShowModal(false)} />}
     </div>
