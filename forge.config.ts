@@ -11,6 +11,7 @@ const config: ForgeConfig = {
     appBundleId: 'com.focussession.app',
     appVersion:  process.env.APP_VERSION ?? require('./package.json').version,
     appCopyright: `Copyright © ${new Date().getFullYear()} Focus Session`,
+    icon: './assets/icon',
     asar: {
       unpack: '*.{node,dll}',
     },

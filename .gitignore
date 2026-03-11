@@ -14,9 +14,10 @@ out/
 *.log
 npm-debug.log*
 
-# Environment
+# Environment — never commit secrets
 .env
 .env.local
+.env.*
 
 # Claude Code
 .claude/
@@ -33,3 +34,12 @@ build/Release/
 
 # Electron packaging
 */app.asar
+
+# Temp screenshots captured during sessions (written to /tmp but guard here too)
+/tmp/fs-*.png
+/tmp/focus-snap-*.png
+
+# SQLite database (lives in ~/Library/Application Support, not the repo)
+*.db
+*.db-wal
+*.db-shm

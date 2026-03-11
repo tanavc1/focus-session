@@ -16,6 +16,15 @@ try {
   // Not installed — that's fine for local dev
 }
 
+// ── Process-level safety net ──────────────────────────────────────────────────
+// Prevents silent crashes that would leave an active session unrecorded.
+process.on('uncaughtException', (err) => {
+  console.error('[Main] Uncaught exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Main] Unhandled promise rejection:', reason);
+});
+
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
@@ -81,9 +90,13 @@ app.whenReady().then(() => {
   // Check for updates in the background (15s delay, non-blocking)
   scheduleUpdateCheck();
 
-  // Handle download request from renderer
+  // Handle download request from renderer — only allow HTTPS GitHub URLs
   ipcMain.handle('update:download', (_event, url: string) => {
-    openDownloadUrl(url);
+    if (typeof url === 'string' && /^https:\/\/github\.com\//i.test(url)) {
+      openDownloadUrl(url);
+    } else {
+      console.warn('[Updater] Rejected download URL (not a GitHub HTTPS link):', url);
+    }
   });
 
   // Resume tracking if there was an active session (e.g., crash recovery)

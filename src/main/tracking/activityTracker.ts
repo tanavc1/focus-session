@@ -255,7 +255,7 @@ function captureAndAnalyzeAsync(sessionId: string, trigger: 'context-change' | '
     } finally {
       state.visionPending = false;
     }
-  })();
+  })().catch((err) => console.error('[Vision] Unexpected rejection:', err));
 }
 
 // ─── Main poll ────────────────────────────────────────────────────────────────

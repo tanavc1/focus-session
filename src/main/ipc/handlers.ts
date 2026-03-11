@@ -68,6 +68,15 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('session:start', async (_event, args: { title: string; goal: string; target_duration?: number }) => {
     try {
+      // Validate inputs
+      const title = String(args.title ?? '').trim().slice(0, 500);
+      const goal  = String(args.goal  ?? '').trim().slice(0, 2000);
+      if (!title) return err('Session title is required');
+      const duration = args.target_duration;
+      if (duration !== undefined && (typeof duration !== 'number' || !isFinite(duration) || duration < 1 || duration > 480)) {
+        return err('Invalid target duration (must be 1–480 minutes)');
+      }
+
       const existing = getActiveSession();
       if (existing) {
         endSession(existing.id);
@@ -75,7 +84,7 @@ export function registerIpcHandlers(): void {
       }
 
       const id = uuidv4();
-      const session = createSession(id, args.title, args.goal, args.target_duration);
+      const session = createSession(id, title, goal, duration);
       startTracking(id);
       setTraySession(session);
       return ok(session);
