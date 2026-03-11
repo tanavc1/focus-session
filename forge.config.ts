@@ -15,8 +15,8 @@ const config: ForgeConfig = {
     asar: {
       unpack: '*.{node,dll}',
     },
-    // Code-signing is skipped for unsigned builds.
-    // Set APPLE_ID, APPLE_TEAM_ID, APPLE_PASSWORD env vars to enable notarisation.
+    // Signing: ad-hoc by default (prevents "damaged" on macOS without paid cert).
+    // Set APPLE_ID + APPLE_TEAM_ID + APPLE_PASSWORD to enable full notarisation.
     ...(process.env.APPLE_ID ? {
       osxSign: {},
       osxNotarize: {
@@ -25,7 +25,11 @@ const config: ForgeConfig = {
         appleIdPassword:  process.env.APPLE_PASSWORD!,
         teamId:           process.env.APPLE_TEAM_ID!,
       },
-    } : {}),
+    } : {
+      // Ad-hoc sign — free, no Apple Developer account needed.
+      // Gatekeeper shows "unidentified developer" instead of "damaged" — bypassable.
+      osxSign: { identity: '-' },
+    }),
   },
 
   rebuildConfig: {

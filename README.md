@@ -118,8 +118,11 @@ npm run make       # produces Focus.dmg in out/make/
 **Browser domain not showing**
 → Grant Automation permission for your browser (System Settings → Privacy & Security → Automation → Focus → enable your browser).
 
-**"Focus can't be opened" on first launch**
-→ Right-click the app → Open → click Open again. This is a one-time Gatekeeper bypass for unsigned apps from outside the App Store.
+**"Focus can't be opened because Apple cannot verify the developer" on first launch**
+→ Right-click **Focus** in Applications → **Open** → click **Open** again. This is a one-time Gatekeeper bypass and you'll never see it again.
+
+**Still seeing "damaged and can't be opened"?**
+→ Open Terminal and run: `xattr -dr com.apple.quarantine /Applications/Focus.app` then launch normally.
 
 **Vision analysis not working**
 → Make sure Ollama is running (`ollama serve`) and the vision model is pulled (`ollama pull minicpm-v:2.6`). Check **Settings → AI → Test Connection**. If you see the model listed there, click it to set it as your vision model.

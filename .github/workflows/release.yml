@@ -46,8 +46,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build DMG
-        run: npm run make
+      - name: Package app (creates .app bundle)
+        run: npm run package
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Ad-hoc sign app (prevents "damaged" error on macOS)
+        # Signs with local identity (-) instead of an Apple Developer cert.
+        # Converts Gatekeeper block from "damaged" (unbypassable) to
+        # "unidentified developer" (bypassable with right-click → Open).
+        run: |
+          APP=$(find out -name "Focus.app" -maxdepth 6 | head -1)
+          if [ -z "$APP" ]; then
+            echo "ERROR: Focus.app not found after package step"
+            find out -type d | head -20
+            exit 1
+          fi
+          echo "Signing: $APP"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP" && echo "✓ Signature verified"
+
+      - name: Build DMG (from signed .app)
+        run: npx electron-forge make --skip-package
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
