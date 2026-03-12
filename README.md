@@ -10,7 +10,7 @@ No accounts. No cloud. No subscription. Free and open source.
 
 ### **[Focus.dmg — Latest Build](https://github.com/tanavc1/focus-session/releases/latest/download/Focus.dmg)**
 
-> macOS 12 (Monterey) or later · Apple Silicon & Intel
+> macOS 12 (Monterey) or later · Apple Silicon
 
 ### Install
 
