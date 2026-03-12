@@ -13,11 +13,11 @@ const config: ForgeConfig = {
     appCopyright: `Copyright © ${new Date().getFullYear()} Focus Session`,
     icon: './assets/icon',
     asar: {
-      // Must use ** glob so nested .node files (e.g. better_sqlite3.node deep
-      // inside node_modules) get extracted to app.asar.unpacked at pack time.
-      // Without **, native modules stay inside the asar and dlopen fails.
+      // Extract only the .node binary to app.asar.unpacked so dlopen can load it.
+      // The JS package stays inside the asar so require('better-sqlite3') resolves.
+      // AutoUnpackNativesPlugin handles this automatically — unpackDir is NOT used
+      // because it would move the entire package outside the asar, breaking require().
       unpack: '**/*.node',
-      unpackDir: '**/node_modules/{better-sqlite3,bindings,file-uri-to-path}',
     },
     // Signing: ad-hoc by default (prevents "damaged" on macOS without paid cert).
     // Set APPLE_ID + APPLE_TEAM_ID + APPLE_PASSWORD to enable full notarisation.

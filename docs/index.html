@@ -485,11 +485,11 @@
       </div>
       <div class="install-steps">
         <div class="install-step"><span class="step-num">1</span><span>Open <strong>Focus.dmg</strong> → drag Focus into <strong>Applications</strong></span></div>
-        <div class="install-step"><span class="step-num">2</span><span>Try to open Focus. If macOS blocks it, open <strong>System Settings → Privacy &amp; Security</strong> → scroll down → click <strong>"Open Anyway"</strong></span></div>
-        <div class="install-step"><span class="step-num">3</span><span>Grant <strong>Accessibility</strong> permission when prompted — required for app tracking</span></div>
+        <div class="install-step"><span class="step-num">2</span><span>Double-click Focus — macOS will show <em>"Apple cannot verify that Focus is free of malware."</em> Open <strong>System Settings → Privacy &amp; Security</strong> → scroll to the bottom → click <strong>"Open Anyway"</strong> → enter your Mac password → click <strong>Open</strong></span></div>
+        <div class="install-step"><span class="step-num">3</span><span>Grant <strong>Accessibility</strong> permission when prompted — required for app &amp; window tracking</span></div>
       </div>
       <div class="xattr-note">
-        <span class="xattr-label">Still blocked?</span> Paste this into Terminal then relaunch Focus:
+        <span class="xattr-label">Faster bypass:</span> Run this in Terminal once, then open Focus normally:
         <span class="xattr-code" onclick="navigator.clipboard.writeText('xattr -dr com.apple.quarantine /Applications/Focus.app')" title="Click to copy">xattr -dr com.apple.quarantine /Applications/Focus.app</span>
       </div>
       <p class="install-note">

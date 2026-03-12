@@ -47,30 +47,17 @@ jobs:
         run: npm ci
 
       - name: Rebuild native modules for Electron
+        # Ensures better-sqlite3 is compiled for the exact Electron ABI version.
+        # Must run before `npm run make` so the correct .node binary is packaged.
         run: npx electron-rebuild -f -w better-sqlite3
 
-      - name: Package app (creates .app bundle)
-        run: npm run package
-        env:
-          APP_VERSION: ${{ steps.version.outputs.version }}
-
-      - name: Ad-hoc sign app (prevents "damaged" error on macOS)
-        # Signs with local identity (-) instead of an Apple Developer cert.
-        # Converts Gatekeeper block from "damaged" (unbypassable) to
-        # "unidentified developer" (bypassable with right-click → Open).
-        run: |
-          APP=$(find out -name "Focus.app" -maxdepth 6 | head -1)
-          if [ -z "$APP" ]; then
-            echo "ERROR: Focus.app not found after package step"
-            find out -type d | head -20
-            exit 1
-          fi
-          echo "Signing: $APP"
-          codesign --force --deep --sign - "$APP"
-          codesign --verify --deep --strict "$APP" && echo "✓ Signature verified"
-
-      - name: Build DMG (from signed .app)
-        run: npx electron-forge make --skip-package
+      - name: Build & sign DMG
+        # forge.config.ts has osxSign: { identity: '-' } which ad-hoc signs the
+        # .app during packaging — prevents the "damaged and can't be opened" error.
+        # AutoUnpackNativesPlugin + asar.unpack: '**/*.node' ensures better-sqlite3
+        # binary lands in app.asar.unpacked while the JS package stays in the asar
+        # so require('better-sqlite3') resolves correctly at runtime.
+        run: npm run make
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
@@ -102,10 +89,14 @@ jobs:
             ### Install
 
             1. Open `Focus.dmg` → drag **Focus** into Applications
-            2. Try to open Focus — macOS will block it. Go to **System Settings → Privacy & Security** → scroll down → click **"Open Anyway"** → enter password → Open
-            3. Grant **Accessibility** permission when prompted
+            2. **First launch** — macOS will say _"Apple cannot verify that Focus is free of malware."_
+               Go to **System Settings → Privacy & Security** → scroll to the bottom → click **"Open Anyway"** → enter your Mac password → click **Open**
+            3. Grant **Accessibility** permission when prompted (required for activity tracking)
 
-            > **Fastest bypass:** paste into Terminal → `xattr -dr com.apple.quarantine /Applications/Focus.app` — then open normally. One-time only.
+            > **Faster bypass (Terminal):** Run this once, then open Focus normally:
+            > ```
+            > xattr -dr com.apple.quarantine /Applications/Focus.app
+            > ```
 
             ---
 
