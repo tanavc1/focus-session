@@ -3,6 +3,8 @@ import { MakerDMG }  from '@electron-forge/maker-dmg';
 import { MakerZIP }  from '@electron-forge/maker-zip';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
+import path from 'path';
+import fs from 'fs-extra';
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -13,15 +15,13 @@ const config: ForgeConfig = {
     appCopyright: `Copyright © ${new Date().getFullYear()} Focus Session`,
     icon: './assets/icon',
     asar: {
-      // Extract only the .node binary to app.asar.unpacked so dlopen can load it.
-      // The JS package stays inside the asar so require('better-sqlite3') resolves.
-      // AutoUnpackNativesPlugin handles this automatically — unpackDir is NOT used
-      // because it would move the entire package outside the asar, breaking require().
+      // AutoUnpackNativesPlugin will extend this to also unpack **/{.**,**}/**/*.node
+      // so the better_sqlite3.node binary lands in app.asar.unpacked (required for dlopen).
+      // The JS packages stay inside the asar so require() can resolve them.
       unpack: '**/*.node',
     },
     // Signing: set APPLE_ID + APPLE_TEAM_ID + APPLE_PASSWORD for full notarisation.
-    // Without those env vars, signing is handled by the CI codesign step (or skipped
-    // in local dev — run `codesign --force --deep --sign - Focus.app` manually if needed).
+    // Without those env vars, signing is handled by the CI codesign step.
     ...(process.env.APPLE_ID ? {
       osxSign: {},
       osxNotarize: {
@@ -31,6 +31,29 @@ const config: ForgeConfig = {
         teamId:           process.env.APPLE_TEAM_ID!,
       },
     } : {}),
+  },
+
+  hooks: {
+    // The VitePlugin sets packagerConfig.ignore to only include '.vite/' files,
+    // which correctly excludes pure-JS node_modules (bundled by Vite). But
+    // better-sqlite3 is a native module that CANNOT be bundled — it must be on
+    // the real filesystem for require() to find the JS package and dlopen to
+    // load the binary.
+    //
+    // packageAfterCopy runs after electron-packager's file copy (so after the
+    // ignore filter) but before asar packing. We inject the native packages
+    // directly into the build path here so they end up in the asar alongside
+    // the Vite output. AutoUnpackNativesPlugin then extracts the .node binary
+    // to app.asar.unpacked so dlopen can load it.
+    packageAfterCopy: async (_config, buildPath) => {
+      const nativeModules = ['better-sqlite3', 'bindings', 'file-uri-to-path'];
+      for (const mod of nativeModules) {
+        const src  = path.join(__dirname, 'node_modules', mod);
+        const dest = path.join(buildPath, 'node_modules', mod);
+        await fs.copy(src, dest);
+        console.log(`[forge] Injected native dep: ${mod}`);
+      }
+    },
   },
 
   rebuildConfig: {
