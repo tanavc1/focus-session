@@ -26,15 +26,10 @@ jobs:
       - name: Auto-set version from commit count
         id: version
         run: |
-          # Major.Minor come from package.json; patch is the total commit count.
-          # Every push to main produces a unique, strictly-increasing version.
-          # e.g. 1.0.0 → 1.0.1 → 1.0.2 … with no manual steps required.
           BASE=$(node -p "const p=require('./package.json'); \`\${p.version.split('.')[0]}.\${p.version.split('.')[1]}\`")
           PATCH=$(git rev-list --count HEAD)
           VERSION="${BASE}.${PATCH}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-
-          # Write the computed version back into package.json before building
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -47,17 +42,39 @@ jobs:
         run: npm ci
 
       - name: Rebuild native modules for Electron
-        # Ensures better-sqlite3 is compiled for the exact Electron ABI version.
-        # Must run before `npm run make` so the correct .node binary is packaged.
+        # Compiles better-sqlite3 against the exact Electron ABI so the .node
+        # binary loads correctly at runtime (prevents "Cannot find module" crash).
         run: npx electron-rebuild -f -w better-sqlite3
 
-      - name: Build & sign DMG
-        # forge.config.ts has osxSign: { identity: '-' } which ad-hoc signs the
-        # .app during packaging — prevents the "damaged and can't be opened" error.
-        # AutoUnpackNativesPlugin + asar.unpack: '**/*.node' ensures better-sqlite3
-        # binary lands in app.asar.unpacked while the JS package stays in the asar
-        # so require('better-sqlite3') resolves correctly at runtime.
-        run: npm run make
+      - name: Package app
+        # Creates out/Focus-darwin-arm64/Focus.app — no signing yet.
+        run: npm run package
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Ad-hoc sign app
+        # codesign --sign - applies an ad-hoc signature (local identity, no cert needed).
+        # This changes Gatekeeper's response from "damaged and can't be opened"
+        # (unbypassable) to "Apple cannot verify" (bypassable via System Settings).
+        # --force      overwrites any existing signature
+        # --deep       signs all nested frameworks and helpers
+        # --options runtime  enables hardened runtime (needed for some macOS APIs)
+        run: |
+          APP=$(find out -name "Focus.app" -maxdepth 6 | head -1)
+          if [ -z "$APP" ]; then
+            echo "ERROR: Focus.app not found after package step"
+            find out -type d | head -20
+            exit 1
+          fi
+          echo "Signing: $APP"
+          codesign --force --deep --sign - --options runtime "$APP"
+          codesign --verify --deep --strict "$APP" && echo "✓ Signature verified"
+          codesign -dv "$APP" 2>&1 | grep -E "Identifier|Authority|TeamIdentifier|Signature"
+
+      - name: Build DMG from signed app
+        # --skip-package tells forge to use the already-built (and signed) .app
+        # rather than re-packaging, which would overwrite our signature.
+        run: npx electron-forge make --skip-package
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
@@ -69,7 +86,7 @@ jobs:
             echo "ERROR: No DMG found"; find out/make -type f | head -20; exit 1
           fi
           cp "$DMG" out/make/Focus.dmg
-          echo "Packaged as out/make/Focus.dmg (v${{ steps.version.outputs.version }})"
+          echo "Packaged: out/make/Focus.dmg (v${{ steps.version.outputs.version }})"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -89,8 +106,8 @@ jobs:
             ### Install
 
             1. Open `Focus.dmg` → drag **Focus** into Applications
-            2. **First launch** — macOS will say _"Apple cannot verify that Focus is free of malware."_
-               Go to **System Settings → Privacy & Security** → scroll to the bottom → click **"Open Anyway"** → enter your Mac password → click **Open**
+            2. Double-click Focus — macOS will show _"Apple cannot verify that Focus is free of malware."_
+               Open **System Settings → Privacy & Security** → scroll to the bottom → click **"Open Anyway"** → enter your Mac password → click **Open**
             3. Grant **Accessibility** permission when prompted (required for activity tracking)
 
             > **Faster bypass (Terminal):** Run this once, then open Focus normally:

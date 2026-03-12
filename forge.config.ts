@@ -19,8 +19,9 @@ const config: ForgeConfig = {
       // because it would move the entire package outside the asar, breaking require().
       unpack: '**/*.node',
     },
-    // Signing: ad-hoc by default (prevents "damaged" on macOS without paid cert).
-    // Set APPLE_ID + APPLE_TEAM_ID + APPLE_PASSWORD to enable full notarisation.
+    // Signing: set APPLE_ID + APPLE_TEAM_ID + APPLE_PASSWORD for full notarisation.
+    // Without those env vars, signing is handled by the CI codesign step (or skipped
+    // in local dev — run `codesign --force --deep --sign - Focus.app` manually if needed).
     ...(process.env.APPLE_ID ? {
       osxSign: {},
       osxNotarize: {
@@ -29,11 +30,7 @@ const config: ForgeConfig = {
         appleIdPassword:  process.env.APPLE_PASSWORD!,
         teamId:           process.env.APPLE_TEAM_ID!,
       },
-    } : {
-      // Ad-hoc sign — free, no Apple Developer account needed.
-      // Gatekeeper shows "unidentified developer" instead of "damaged" — bypassable.
-      osxSign: { identity: '-' },
-    }),
+    } : {}),
   },
 
   rebuildConfig: {
