@@ -371,9 +371,17 @@ export function getDayPlan(date: string): DayPlan | null {
     morning_intention: string | null; created_at: number; updated_at: number;
   } | null;
   if (!row) return null;
+  let goals: DayGoal[] = [];
+  try {
+    goals = JSON.parse(row.goals) as DayGoal[];
+    if (!Array.isArray(goals)) goals = [];
+  } catch {
+    // Corrupted goals JSON — return empty array rather than throwing
+    goals = [];
+  }
   return {
     ...row,
-    goals: JSON.parse(row.goals) as DayGoal[],
+    goals,
     morning_intention: row.morning_intention ?? undefined,
   };
 }
@@ -393,7 +401,9 @@ export function upsertDayPlan(plan: Omit<DayPlan, 'created_at' | 'updated_at'>):
     plan.id, plan.date, JSON.stringify(plan.goals),
     plan.target_focus_minutes, plan.morning_intention ?? null, now, now,
   );
-  return getDayPlan(plan.date)!;
+  const result = getDayPlan(plan.date);
+  if (!result) throw new Error(`Failed to retrieve day plan after upsert for date: ${plan.date}`);
+  return result;
 }
 
 // ─── Day Stats ────────────────────────────────────────────────────────────────
@@ -401,9 +411,14 @@ export function upsertDayPlan(plan: Omit<DayPlan, 'created_at' | 'updated_at'>):
 function dateToRange(dateStr: string): { start: number; end: number } {
   // Parse YYYY-MM-DD and return epoch ms range for that local day
   const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) {
+    // Guard against invalid date strings producing NaN in SQL queries
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return { start: today.getTime(), end: today.getTime() + 86_400_000 };
+  }
   const start = d.getTime();
-  const end = start + 24 * 60 * 60 * 1000;
-  return { start, end };
+  return { start, end: start + 86_400_000 };
 }
 
 function computeFlowSecondsFromBlocks(blocks: ActivityBlock[]): number {

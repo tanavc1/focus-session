@@ -79,8 +79,11 @@ export function registerIpcHandlers(): void {
 
       const existing = getActiveSession();
       if (existing) {
-        endSession(existing.id);
-        stopTracking();
+        try { endSession(existing.id); } catch (e) {
+          console.error('[IPC] Failed to end existing session before start:', e);
+        } finally {
+          stopTracking(); // always stop — even if endSession threw
+        }
       }
 
       const id = uuidv4();
@@ -113,7 +116,8 @@ export function registerIpcHandlers(): void {
 
       // Build activity blocks from raw events
       const events = getEventsBySession(args.session_id);
-      const updatedSession = getSession(args.session_id)!;
+      const updatedSession = getSession(args.session_id);
+      if (!updatedSession) return err('Session not found after ending — data may be inconsistent');
       const blocks = groupEventsIntoBlocks(events, args.session_id, session.goal);
       upsertActivityBlocks(blocks);
 
@@ -337,6 +341,9 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('dayplan:set', async (_event, args: Omit<DayPlan, 'created_at' | 'updated_at'>) => {
     try {
+      if (!args.date || !/^\d{4}-\d{2}-\d{2}$/.test(args.date)) {
+        return err('Invalid date format — expected YYYY-MM-DD');
+      }
       const plan = upsertDayPlan({ ...args, id: args.id || uuidv4() });
       return ok(plan);
     } catch (e) { return err(String(e)); }
