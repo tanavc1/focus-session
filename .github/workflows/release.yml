@@ -53,12 +53,15 @@ jobs:
           APP_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Ad-hoc sign app
-        # codesign --sign - applies an ad-hoc signature (local identity, no cert needed).
+        # codesign --sign - applies an ad-hoc signature (no cert, no Apple account needed).
         # This changes Gatekeeper's response from "damaged and can't be opened"
         # (unbypassable) to "Apple cannot verify" (bypassable via System Settings).
-        # --force      overwrites any existing signature
-        # --deep       signs all nested frameworks and helpers
-        # --options runtime  enables hardened runtime (needed for some macOS APIs)
+        #
+        # IMPORTANT: Do NOT use --options runtime (hardened runtime) with ad-hoc signing.
+        # Hardened runtime blocks Electron's V8 JIT compilation — the app will launch
+        # and immediately crash with "Check with the developer" unless entitlements are
+        # also provided. Ad-hoc signing without hardened runtime is the correct approach
+        # for distributing without an Apple Developer account.
         run: |
           APP=$(find out -name "Focus.app" -maxdepth 6 | head -1)
           if [ -z "$APP" ]; then
@@ -67,7 +70,7 @@ jobs:
             exit 1
           fi
           echo "Signing: $APP"
-          codesign --force --deep --sign - --options runtime "$APP"
+          codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict "$APP" && echo "✓ Signature verified"
           codesign -dv "$APP" 2>&1 | grep -E "Identifier|Authority|TeamIdentifier|Signature"
 
