@@ -118,11 +118,20 @@ npm run make       # produces Focus.dmg in out/make/
 **Browser domain not showing**
 → Grant Automation permission for your browser (System Settings → Privacy & Security → Automation → Focus → enable your browser).
 
-**"Focus can't be opened because Apple cannot verify the developer" on first launch**
-→ Right-click **Focus** in Applications → **Open** → click **Open** again. This is a one-time Gatekeeper bypass and you'll never see it again.
+**"Apple cannot verify that Focus is safe" / "cannot be opened"**
+→ macOS blocks unsigned apps by default. Two ways to fix it (one-time only):
 
-**Still seeing "damaged and can't be opened"?**
-→ Open Terminal and run: `xattr -dr com.apple.quarantine /Applications/Focus.app` then launch normally.
+**Option A** — System Settings:
+1. Try to open Focus (it will be blocked)
+2. Open **System Settings → Privacy & Security**
+3. Scroll down — you'll see _"Focus was blocked"_ → click **Open Anyway**
+4. Enter your Mac password → **Open**
+
+**Option B** — Terminal (fastest):
+```bash
+xattr -dr com.apple.quarantine /Applications/Focus.app
+```
+Then double-click Focus normally. You'll never see the warning again.
 
 **Vision analysis not working**
 → Make sure Ollama is running (`ollama serve`) and the vision model is pulled (`ollama pull minicpm-v:2.6`). Check **Settings → AI → Test Connection**. If you see the model listed there, click it to set it as your vision model.

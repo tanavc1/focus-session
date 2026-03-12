@@ -96,11 +96,13 @@ jobs:
 
             ---
 
-            ### Install in 3 steps
+            ### Install
 
             1. Open `Focus.dmg` → drag **Focus** into Applications
-            2. First launch: right-click → **Open** → **Open** again *(one-time Gatekeeper bypass)*
+            2. Try to open Focus — macOS will block it. Go to **System Settings → Privacy & Security** → scroll down → click **"Open Anyway"** → enter password → Open
             3. Grant **Accessibility** permission when prompted
+
+            > **Fastest bypass:** paste into Terminal → `xattr -dr com.apple.quarantine /Applications/Focus.app` — then open normally. One-time only.
 
             ---
 
