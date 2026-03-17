@@ -117,7 +117,12 @@ export function registerIpcHandlers(): void {
       // Build activity blocks from raw events
       const events = getEventsBySession(args.session_id);
       const updatedSession = getSession(args.session_id);
-      if (!updatedSession) return err('Session not found after ending — data may be inconsistent');
+      if (!updatedSession) {
+        // Session was ended but not found on re-read — return a synthetic completed session
+        console.error('[IPC] session:end: session not found after ending, returning null');
+        setTraySession(null);
+        return ok(null);
+      }
       const blocks = groupEventsIntoBlocks(events, args.session_id, session.goal);
       upsertActivityBlocks(blocks);
 

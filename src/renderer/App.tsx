@@ -18,6 +18,15 @@ export default function App() {
     initApp();
   }, [initApp]);
 
+  // Show minimal loading state while initializing
+  if (isLoading && !settings) {
+    return (
+      <div className="h-screen w-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (!isLoading && settings && !settings.onboarding_completed) {
     return (
       <OnboardingPage

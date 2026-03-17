@@ -253,6 +253,16 @@ function AiSettings() {
 
   return (
     <div className="space-y-5">
+      {/* AI optional info */}
+      <div className="p-3 bg-slate-800/40 rounded-xl border border-slate-700/40 text-xs text-slate-400 flex items-start gap-2.5">
+        <span className="text-slate-500 flex-shrink-0 mt-0.5">ℹ️</span>
+        <span>
+          <span className="text-slate-300 font-medium">AI is fully optional.</span>
+          {' '}Tracking, flow detection, and all stats work without it.
+          When enabled, session summaries are generated privately on your Mac (Ollama) or via a cloud API you control (Claude/OpenAI).
+        </span>
+      </div>
+
       {/* Enable AI toggle */}
       <div className="card space-y-4">
         <div className="flex items-center justify-between">
@@ -329,11 +339,13 @@ function AiSettings() {
                 Recommended: <code className="font-mono">phi4-mini:latest</code>, <code className="font-mono">llama3.1:8b</code>, <code className="font-mono">qwen2.5:7b</code>
               </p>
             </div>
-            <div className="bg-slate-800/40 rounded-lg p-3 space-y-1 text-xs text-slate-400">
-              <p className="font-medium text-slate-300">Setup:</p>
-              <p><code className="font-mono text-slate-300">brew install ollama</code></p>
-              <p><code className="font-mono text-slate-300">ollama serve</code></p>
-              <p><code className="font-mono text-slate-300">ollama pull phi4-mini</code></p>
+            <div className="bg-slate-800/40 rounded-lg p-3 space-y-1.5 text-xs text-slate-400">
+              <p className="font-medium text-slate-300 mb-1">Setup (one time):</p>
+              <p>1. Install: <code className="font-mono text-slate-300 bg-slate-700/50 px-1 rounded">brew install ollama</code></p>
+              <p>2. Start: <code className="font-mono text-slate-300 bg-slate-700/50 px-1 rounded">ollama serve</code></p>
+              <p>3. Pull model: <code className="font-mono text-slate-300 bg-slate-700/50 px-1 rounded">ollama pull phi4-mini</code></p>
+              <p className="text-slate-500 pt-1 border-t border-slate-700/40">For vision analysis: <code className="font-mono text-slate-400 bg-slate-700/50 px-1 rounded">ollama pull minicpm-v:2.6</code> (~5.5 GB)</p>
+              <p className="text-slate-600">No Brew? Download from <span className="text-brand-400">ollama.com</span></p>
             </div>
           </div>
         )}
@@ -557,6 +569,13 @@ function AiSettings() {
                 </select>
               )}
             </div>
+
+            {/* Cloud vision cost note */}
+            {(provider === 'claude' || provider === 'openai') && (
+              <div className="p-2.5 bg-amber-950/30 border border-amber-900/40 rounded-lg text-xs text-amber-300/80">
+                <span className="font-semibold text-amber-300">Cost note:</span> Vision screenshots fire on context switches (min 8s apart) + every 3 min. With cloud providers this is ~$0.002–0.005 per screenshot. To keep costs low, vision defaults to minimal frequency. You can disable vision above if not needed.
+              </div>
+            )}
 
             {/* How it works note */}
             <div className="p-3 bg-slate-800/40 rounded-lg text-xs text-slate-400 space-y-1">

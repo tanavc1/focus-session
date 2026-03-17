@@ -110,24 +110,35 @@ jobs:
             ### Install
 
             1. Open `Focus.dmg` → drag **Focus** into Applications
-            2. Double-click Focus — macOS will show _"Apple cannot verify that Focus is free of malware."_
-               Open **System Settings → Privacy & Security** → scroll to the bottom → click **"Open Anyway"** → enter your Mac password → click **Open**
-            3. Grant **Accessibility** permission when prompted (required for activity tracking)
+            2. Open Focus from Applications
 
-            > **Faster bypass (Terminal):** Run this once, then open Focus normally:
-            > ```
-            > xattr -dr com.apple.quarantine /Applications/Focus.app
-            > ```
+            **macOS Security Warning** — macOS will show _"Apple cannot verify that Focus is free of malware."_
+            This is **normal** for open-source apps not distributed through the App Store. Focus is safe — [source is public on GitHub](https://github.com/${{ github.repository }}).
+
+            **Option A — System Settings:**
+            - Open **System Settings → Privacy & Security**
+            - Scroll to the bottom → click **"Open Anyway"** → enter your Mac password → click **Open**
+
+            **Option B — Terminal (faster, one command):**
+            ```
+            xattr -dr com.apple.quarantine /Applications/Focus.app
+            ```
+            Then open Focus normally. This is a one-time step.
+
+            3. Grant **Accessibility** permission when prompted (required for activity tracking)
 
             ---
 
-            ### Optional: AI-powered reports
+            ### Optional: AI-powered coaching reports
 
-            **Local (free)** — [Install Ollama](https://ollama.com) then:
+            **Local & free** — [Install Ollama](https://ollama.com) then run:
             ```
-            ollama serve && ollama pull phi4-mini
+            ollama serve
+            ollama pull phi4-mini
             ```
-            **Cloud** — Add a Claude or OpenAI key in **Settings → AI**.
+            Then open Focus → **Settings → AI** → select Ollama → click **Test Connection**.
+
+            **Cloud (Claude or OpenAI)** — Add your API key in **Settings → AI**. ~$0.01 per session report.
 
             ---
             *Commit [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})*

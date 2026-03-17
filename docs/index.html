@@ -186,6 +186,9 @@
     .xattr-code { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 6px; color: var(--green); cursor: pointer; transition: background .15s; white-space: nowrap; }
     .xattr-code:hover { background: rgba(0,0,0,0.6); }
 
+    /* ── Gatekeeper callout ───────────────────────── */
+    .gk-callout { margin: 20px auto 0; max-width: 480px; }
+
     /* ── Footer ───────────────────────────────────── */
     footer { border-top: 1px solid var(--border); padding: 28px 0; }
     .foot { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--subtle); flex-wrap: wrap; gap: 10px; }
@@ -214,6 +217,7 @@
       <a href="#features" class="nav-a">Features</a>
       <a href="#ai" class="nav-a">AI Setup</a>
       <a href="#privacy" class="nav-a">Privacy</a>
+      <a href="#install" class="nav-a">Install</a>
       <a href="https://github.com/tanavc1/focus-session" target="_blank" class="nav-a" style="display:flex;align-items:center;gap:5px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
         GitHub
@@ -468,7 +472,7 @@
 <div class="divider"></div>
 
 <!-- CTA -->
-<section class="cta-wrap">
+<section id="install" class="cta-wrap">
   <div class="container">
     <div class="cta-card">
       <h2>Start your first session</h2>
@@ -485,16 +489,35 @@
       </div>
       <div class="install-steps">
         <div class="install-step"><span class="step-num">1</span><span>Open <strong>Focus.dmg</strong> → drag Focus into <strong>Applications</strong></span></div>
-        <div class="install-step"><span class="step-num">2</span><span>Double-click Focus — macOS will show <em>"Apple cannot verify that Focus is free of malware."</em> Open <strong>System Settings → Privacy &amp; Security</strong> → scroll to the bottom → click <strong>"Open Anyway"</strong> → enter your Mac password → click <strong>Open</strong></span></div>
+        <div class="install-step"><span class="step-num">2</span><span>Open Focus from Applications — macOS shows a security warning (see below)</span></div>
         <div class="install-step"><span class="step-num">3</span><span>Grant <strong>Accessibility</strong> permission when prompted — required for app &amp; window tracking</span></div>
       </div>
-      <div class="xattr-note">
-        <span class="xattr-label">Faster bypass:</span> Run this in Terminal once, then open Focus normally:
-        <span class="xattr-code" onclick="navigator.clipboard.writeText('xattr -dr com.apple.quarantine /Applications/Focus.app')" title="Click to copy">xattr -dr com.apple.quarantine /Applications/Focus.app</span>
+
+      <!-- Gatekeeper callout -->
+      <div style="margin:20px auto 0;max-width:480px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.22);border-radius:12px;padding:18px 20px;text-align:left;position:relative;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span style="font-size:13px;font-weight:700;color:#fbbf24;">macOS Security Warning — what to do</span>
+        </div>
+        <p style="font-size:12.5px;color:#94a3b8;line-height:1.6;margin-bottom:12px;">
+          macOS shows <em style="color:#e2e8f0;">"Apple cannot verify that Focus is free of malware"</em> because Focus isn't distributed through the Mac App Store. This is <strong style="color:#e2e8f0;">completely normal</strong> for open-source apps. Focus is safe — all source code is public on GitHub.
+        </p>
+        <div style="font-size:12.5px;color:#94a3b8;line-height:1.85;margin-bottom:12px;">
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;"><span style="color:#6366f1;font-weight:700;flex-shrink:0;">①</span><span>Open <strong style="color:#e2e8f0;">System Settings → Privacy &amp; Security</strong></span></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;"><span style="color:#6366f1;font-weight:700;flex-shrink:0;">②</span><span>Scroll to the bottom — you'll see <em style="color:#e2e8f0;">"Focus was blocked..."</em></span></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;"><span style="color:#6366f1;font-weight:700;flex-shrink:0;">③</span><span>Click <strong style="color:#e2e8f0;">"Open Anyway"</strong> → enter your Mac password → click <strong style="color:#e2e8f0;">Open</strong></span></div>
+        </div>
+        <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:12px;">
+          <p style="font-size:12px;color:#64748b;margin-bottom:8px;font-weight:600;">Or skip System Settings entirely — run this in Terminal once:</p>
+          <div style="display:flex;align-items:center;gap:8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;">
+            <code style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#4ade80;flex:1;word-break:break-all;">xattr -dr com.apple.quarantine /Applications/Focus.app</code>
+            <button onclick="navigator.clipboard.writeText('xattr -dr com.apple.quarantine /Applications/Focus.app');this.textContent='✓';setTimeout(()=>this.textContent='Copy',1500)" style="flex-shrink:0;font-size:10px;color:#94a3b8;background:rgba(255,255,255,0.08);border:none;cursor:pointer;padding:3px 8px;border-radius:5px;font-family:inherit;transition:color .15s;" onmouseover="this.style.color='#e2e8f0'" onmouseout="this.style.color='#94a3b8'">Copy</button>
+          </div>
+          <p style="font-size:11px;color:#475569;margin-top:8px;line-height:1.5;">Then open Focus normally. This is a one-time step — it won't happen again. Focus isn't in Apple's paid developer program ($99/yr) but the <a href="https://github.com/tanavc1/focus-session" target="_blank" style="color:#6366f1;text-decoration:none;">full source is on GitHub</a> for inspection.</p>
+        </div>
       </div>
-      <p class="install-note">
-        macOS 12+ · Apple Silicon · Free &amp; open source<br/>
-        <em>This is a one-time step because Focus isn't code-signed via Apple's paid developer program ($99/yr). It won't happen again.</em>
+      <p class="install-note" style="margin-top:14px;">
+        macOS 12+ · Apple Silicon · Free &amp; open source
       </p>
     </div>
   </div>

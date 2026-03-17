@@ -181,9 +181,9 @@ export function startTracking(sessionId: string): void {
   console.log(`[Tracker] Poll: ${settings.tracking_interval_ms} ms | Vision: ${settings.vision_enabled ? settings.vision_model : 'off'}`);
   console.log('[Tracker] Screenshot engine: screencapture CLI (subprocess, non-blocking)');
 
-  poll(sessionId, settings.idle_threshold_seconds, settings.enable_browser_tracking);
+  poll(sessionId);
   state.intervalHandle = setInterval(
-    () => poll(sessionId, settings.idle_threshold_seconds, settings.enable_browser_tracking),
+    () => poll(sessionId),
     settings.tracking_interval_ms,
   );
 }
@@ -260,14 +260,10 @@ function captureAndAnalyzeAsync(sessionId: string, trigger: 'context-change' | '
 
 // ─── Main poll ────────────────────────────────────────────────────────────────
 
-async function poll(
-  sessionId:             string,
-  idleThresholdSeconds:  number,
-  enableBrowserTracking: boolean,
-): Promise<void> {
+async function poll(sessionId: string): Promise<void> {
   try {
     const settings = getCachedSettings();
-    const raw      = await captureActivity(idleThresholdSeconds, enableBrowserTracking);
+    const raw      = await captureActivity(settings.idle_threshold_seconds, settings.enable_browser_tracking);
 
     // ── Idle-resumption tracking ─────────────────────────────────────────────
     const wasIdle = state.wasIdleLastPoll;

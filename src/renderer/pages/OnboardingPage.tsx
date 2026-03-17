@@ -195,9 +195,12 @@ function DoneStep({ onFinish }: { onFinish: () => void }) {
           Start focusing <ChevronRight size={18} />
         </button>
       </div>
-      <p className="text-xs text-slate-600">
-        Tip: Enable Ollama in Settings → AI for free local AI coaching after each session.
-      </p>
+      <div className="text-xs text-slate-500 space-y-1 text-left bg-slate-800/50 rounded-xl p-3 border border-slate-700/40">
+        <p className="font-semibold text-slate-400 mb-1.5">Optional: Enable AI coaching</p>
+        <p>• <strong className="text-slate-400">Free (local):</strong> Install <span className="text-brand-400">Ollama</span> → <code className="font-mono text-slate-400 text-[10px]">ollama serve && ollama pull phi4-mini</code></p>
+        <p>• <strong className="text-slate-400">Cloud:</strong> Add a Claude or OpenAI API key in Settings → AI</p>
+        <p className="text-slate-600 pt-0.5">Tracking and stats work without AI — add it whenever you're ready.</p>
+      </div>
     </div>
   );
 }
