@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Bot, Shield, Clock, Plus, Trash2, CheckCircle, XCircle,
-  Edit3, Save, X, Eye, EyeOff, RefreshCw, Camera, Bell, Target,
+  Edit3, Save, X, Eye, EyeOff, RefreshCw, Camera, Bell, Target, ShieldAlert,
 } from 'lucide-react';
 import { useAppStore } from '../store/useStore';
 import type { Settings, AppClassification, ClassificationType, AiProvider } from '../../shared/types';
@@ -228,10 +228,18 @@ function AiSettings() {
   const [saved, setSaved] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
   const [showOpenAiKey, setShowOpenAiKey] = useState(false);
+  const [screenRecordingGranted, setScreenRecordingGranted] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (settings) setLocal(settings);
   }, [settings]);
+
+  // Check screen recording permission when vision section is shown
+  useEffect(() => {
+    if (local.vision_enabled) {
+      window.api.checkPermissions().then((p) => setScreenRecordingGranted(p.screen_recording)).catch(() => {});
+    }
+  }, [local.vision_enabled]);
 
   async function checkStatus() {
     setChecking(true);
@@ -280,8 +288,8 @@ function AiSettings() {
         </div>
       </div>
 
-      {/* Provider selection */}
-      <div className="card space-y-4">
+      {/* Provider selection — greyed out when AI disabled */}
+      <div className={`card space-y-4 transition-opacity ${!local.enable_llm ? 'opacity-40 pointer-events-none' : ''}`}>
         <h3 className="text-sm font-semibold text-slate-300">Language Model Provider</h3>
         <div className="grid grid-cols-3 gap-2">
           {(['ollama', 'claude', 'openai'] as AiProvider[]).map((p) => (
@@ -427,12 +435,15 @@ function AiSettings() {
               <label className="label">Language Model</label>
               <select
                 className="input"
-                value={local.language_model ?? 'gpt-4o-mini'}
+                value={local.language_model ?? 'gpt-5.4-mini'}
                 onChange={(e) => setLocal((p) => ({ ...p, language_model: e.target.value }))}
               >
-                <option value="gpt-4o-mini">gpt-4o-mini (recommended, cost-effective)</option>
-                <option value="gpt-4o">gpt-4o (most capable)</option>
-                <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                <option value="gpt-5.4-nano">gpt-5.4-nano (cheapest, fastest)</option>
+                <option value="gpt-5.4-mini">gpt-5.4-mini (recommended)</option>
+                <option value="gpt-5.4">gpt-5.4 (most capable GPT-5.4)</option>
+                <option value="gpt-5-mini-2025-08-07">gpt-5-mini (flagship mini)</option>
+                <option value="gpt-5-2025-08-07">gpt-5 (flagship)</option>
+                <option value="gpt-4.1-mini">gpt-4.1-mini (legacy)</option>
               </select>
             </div>
           </div>
@@ -490,9 +501,6 @@ function AiSettings() {
             <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
               <Camera size={14} />
               Vision Analysis
-              <span className="text-xs font-normal text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded-full">
-                On by default
-              </span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Periodically captures your screen and uses a vision model to understand what you're truly working on
@@ -506,6 +514,22 @@ function AiSettings() {
 
         {local.vision_enabled && (
           <div className="space-y-4">
+            {/* Screen recording permission check */}
+            {screenRecordingGranted === false && (
+              <div className="flex items-start gap-2.5 p-3 bg-amber-950/20 border border-amber-800/40 rounded-lg">
+                <ShieldAlert size={15} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-amber-300">Screen Recording not granted</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Vision requires Screen Recording access to capture screenshots.</p>
+                </div>
+                <button
+                  onClick={() => window.api.openScreenRecordingSettings()}
+                  className="text-xs text-amber-400 hover:text-amber-300 underline flex-shrink-0 transition-colors"
+                >
+                  Open Settings
+                </button>
+              </div>
+            )}
             {/* Vision model selector — works for all providers */}
             <div>
               <label className="label">Vision Model</label>
@@ -562,8 +586,11 @@ function AiSettings() {
                   )}
                   {provider === 'openai' && (
                     <>
-                      <option value="gpt-4o">gpt-4o (recommended)</option>
-                      <option value="gpt-4o-mini">gpt-4o-mini</option>
+                      <option value="gpt-5.4-mini">gpt-5.4-mini (recommended)</option>
+                      <option value="gpt-5.4-nano">gpt-5.4-nano (cheapest)</option>
+                      <option value="gpt-5.4">gpt-5.4 (highest quality)</option>
+                      <option value="gpt-5-mini-2025-08-07">gpt-5-mini</option>
+                      <option value="gpt-5-2025-08-07">gpt-5</option>
                     </>
                   )}
                 </select>

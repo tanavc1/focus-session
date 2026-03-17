@@ -54,6 +54,10 @@ interface ElectronAPI {
   onSpotifyUpdate: (callback: (track: SpotifyTrack | null) => void) => () => void;
   onTrayEndSession: (callback: (sessionId: string) => void) => () => void;
   onTrayQuickStart: (callback: () => void) => () => void;
+
+  checkPermissions: () => Promise<{ accessibility: boolean; screen_recording: boolean }>;
+  requestAccessibility: () => Promise<boolean>;
+  openScreenRecordingSettings: () => Promise<void>;
 }
 
 declare global {

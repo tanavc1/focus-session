@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Square, Monitor, Globe, Zap, Coffee, Minus, AlertTriangle, Play, Target, Eye } from 'lucide-react';
+import { Square, Monitor, Globe, Zap, Coffee, Minus, AlertTriangle, Play, Target, Eye, ShieldAlert } from 'lucide-react';
 import { useAppStore } from '../store/useStore';
-import { useActivitySubscription, useSessionControl } from '../hooks/useSession';
+import { useActivitySubscription, useSessionControl, QUICK_SESSION_GOAL } from '../hooks/useSession';
 import type { ClassificationType } from '../../shared/types';
 
 const classificationConfig: Record<ClassificationType, { label: string; color: string; icon: React.ReactNode }> = {
@@ -21,9 +21,17 @@ export default function ActiveSessionPage() {
   const [isEnding, setIsEnding] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [isQuickStarting, setIsQuickStarting] = useState(false);
+  const [accessibilityGranted, setAccessibilityGranted] = useState<boolean | null>(null);
 
   // Subscribe to live activity updates
   useActivitySubscription();
+
+  // Check accessibility permission on mount (and after activity updates to re-check)
+  useEffect(() => {
+    window.api.checkPermissions().then((perms) => {
+      setAccessibilityGranted(perms.accessibility);
+    }).catch(() => setAccessibilityGranted(true)); // don't block UI on error
+  }, []);
 
   // Only redirect when a session that was running gets ended mid-view, not on fresh mount
   const hadSessionOnMount = useRef(!!activeSession);
@@ -105,7 +113,7 @@ export default function ActiveSessionPage() {
 
   const classification = currentActivity?.classification ?? 'unknown';
   const cfg = classificationConfig[classification];
-  const isQuickSession = activeSession.goal === 'Open session — capturing all activity';
+  const isQuickSession = activeSession.goal === QUICK_SESSION_GOAL;
 
   const targetPercent = activeSession.target_duration
     ? Math.min(100, (elapsed / (activeSession.target_duration * 60)) * 100)
@@ -254,10 +262,31 @@ export default function ActiveSessionPage() {
         ) : (
           <div className="flex items-center gap-2 text-slate-500 text-sm">
             <div className="w-3 h-3 border-2 border-slate-600 border-t-brand-400 rounded-full animate-spin" />
-            <span>Detecting activity…</span>
+            <span>{accessibilityGranted === false ? 'Grant Accessibility to begin tracking' : 'Detecting activity…'}</span>
           </div>
         )}
       </div>
+
+      {/* Accessibility permission banner */}
+      {accessibilityGranted === false && (
+        <div className="card border-amber-700/40 bg-amber-950/20 flex items-start gap-3">
+          <ShieldAlert size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-300">Accessibility access needed</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Focus can't see which app or site you're on. Grant access to enable full tracking.
+            </p>
+          </div>
+          <button
+            className="text-xs text-amber-400 hover:text-amber-300 underline flex-shrink-0 transition-colors"
+            onClick={() => window.api.requestAccessibility().then((granted) => {
+              if (granted) setAccessibilityGranted(true);
+            })}
+          >
+            Grant
+          </button>
+        </div>
+      )}
 
       {/* Distraction warning */}
       {classification === 'distracting' && (

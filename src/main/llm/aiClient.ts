@@ -399,7 +399,7 @@ export async function generateSessionSummary(
       console.warn('[AI] OpenAI selected but no API key configured');
       return null;
     }
-    const model = settings.language_model || 'gpt-4o-mini';
+    const model = settings.language_model || 'gpt-5.4-mini';
     rawResponse = await generateOpenAI(settings.openai_api_key, model, SYSTEM_PROMPT, userPrompt);
   } else {
     // Ollama (default)
@@ -423,7 +423,7 @@ export async function generateSessionSummary(
   const providerLabel =
     provider === 'ollama' ? `Ollama (${settings.ollama_model})` :
     provider === 'claude' ? `Claude (${settings.language_model || 'claude-sonnet-4-6'})` :
-    `OpenAI (${settings.language_model || 'gpt-4o-mini'})`;
+    `OpenAI (${settings.language_model || 'gpt-5.4-mini'})`;
 
   return { summary: parsed.summary, suggestions: parsed.suggestions, provider: providerLabel };
 }

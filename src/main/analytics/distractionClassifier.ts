@@ -145,22 +145,67 @@ function heuristicClassify(
   const app = app_name.toLowerCase();
 
   // Common browser names without domain → neutral (domain determines classification)
-  const browsers = ['safari', 'chrome', 'firefox', 'arc', 'brave', 'edge', 'opera', 'vivaldi'];
+  const browsers = ['safari', 'chrome', 'firefox', 'arc', 'brave', 'edge', 'opera', 'vivaldi', 'orion'];
   if (browsers.some((b) => app.includes(b))) {
-    // If we have no domain for a browser, mark as neutral
     return browser_domain ? null : 'neutral';
   }
 
   // Terminal-like apps → productive
-  const terminals = ['terminal', 'iterm', 'warp', 'hyper', 'alacritty', 'kitty', 'bash', 'zsh', 'fish'];
+  const terminals = ['terminal', 'iterm', 'warp', 'hyper', 'alacritty', 'kitty', 'ghostty', 'bash', 'zsh', 'fish', 'termius'];
   if (terminals.some((t) => app.includes(t))) {
     return 'productive';
   }
 
-  // Code editors → productive
-  const editors = ['code', 'vim', 'nvim', 'emacs', 'nano', 'sublime', 'atom', 'pycharm', 'webstorm', 'intellij', 'cursor', 'zed'];
+  // Code editors / IDEs → productive
+  const editors = [
+    'code', 'vim', 'nvim', 'emacs', 'nano', 'sublime', 'atom', 'pycharm', 'webstorm',
+    'intellij', 'cursor', 'zed', 'nova', 'bbedit', 'typora', 'goland', 'clion',
+    'rider', 'rubymine', 'datagrip', 'android studio', 'xcode', 'vscodium',
+  ];
   if (editors.some((e) => app.includes(e))) {
     return 'productive';
+  }
+
+  // Design tools → productive
+  const design = ['figma', 'sketch', 'framer', 'affinity', 'photoshop', 'illustrator', 'premiere', 'after effects', 'davinci', 'final cut', 'pixelmator', 'canva'];
+  if (design.some((d) => app.includes(d))) {
+    return 'productive';
+  }
+
+  // Writing / documents → productive
+  const writing = ['word', 'pages', 'keynote', 'numbers', 'excel', 'powerpoint', 'textedit', 'typora', 'ia writer', 'ulysses', 'scrivener'];
+  if (writing.some((w) => app.includes(w))) {
+    return 'productive';
+  }
+
+  // Notes → productive
+  const notes = ['obsidian', 'notion', 'bear', 'craft', 'logseq', 'roam', 'remnote'];
+  if (notes.some((n) => app.includes(n))) {
+    return 'productive';
+  }
+
+  // Version control / DevOps → productive
+  const devtools = ['tower', 'fork', 'sourcetree', 'github desktop', 'simulator', 'postman', 'insomnia', 'tableplus', 'sequel', 'proxyman', 'charles', 'paw'];
+  if (devtools.some((d) => app.includes(d))) {
+    return 'productive';
+  }
+
+  // Communication / work chat → neutral
+  const comms = ['slack', 'discord', 'teams', 'zoom', 'mail', 'spark', 'mimestream', 'airmail', 'messages', 'facetime', 'loom', 'webex'];
+  if (comms.some((c) => app.includes(c))) {
+    return 'neutral';
+  }
+
+  // Music / media → neutral
+  const media = ['spotify', 'music', 'podcasts', 'amphetamine'];
+  if (media.some((m) => app.includes(m))) {
+    return 'neutral';
+  }
+
+  // System utilities → neutral
+  const system = ['finder', 'preview', 'calculator', 'calendar', 'reminders', 'notes', 'system preferences', 'system settings', 'activity monitor', 'terminal'];
+  if (system.some((s) => app.includes(s))) {
+    return 'neutral';
   }
 
   return null;

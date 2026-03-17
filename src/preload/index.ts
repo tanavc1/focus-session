@@ -140,6 +140,16 @@ const api = {
     return () => ipcRenderer.removeListener('session:resumed', sub);
   },
 
+  // Permissions
+  checkPermissions: () =>
+    ipcRenderer.invoke('permissions:check') as Promise<{ accessibility: boolean; screen_recording: boolean }>,
+
+  requestAccessibility: () =>
+    ipcRenderer.invoke('permissions:request-accessibility') as Promise<boolean>,
+
+  openScreenRecordingSettings: () =>
+    ipcRenderer.invoke('permissions:open-screen-recording') as Promise<void>,
+
   // Auto-update
   onUpdateAvailable: (cb: (info: { version: string; downloadUrl: string; releaseUrl: string }) => void) => {
     const listener = (_: Electron.IpcRendererEvent, info: { version: string; downloadUrl: string; releaseUrl: string }) => cb(info);

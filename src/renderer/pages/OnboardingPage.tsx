@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Zap, Target, TrendingUp, Bot, ChevronRight, CheckCircle, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Zap, Target, TrendingUp, Bot, ChevronRight, CheckCircle, Shield, ShieldCheck, ShieldAlert } from 'lucide-react';
 
 const STEPS = ['welcome', 'howItWorks', 'permissions', 'done'] as const;
 type Step = typeof STEPS[number];
@@ -136,6 +136,35 @@ const PERMISSIONS = [
 ] as const;
 
 function PermissionsStep({ onNext }: { onNext: () => void }) {
+  const [accessibility, setAccessibility] = useState<boolean | null>(null);
+  const [requesting, setRequesting] = useState(false);
+
+  useEffect(() => {
+    window.api.checkPermissions()
+      .then((p) => setAccessibility(p.accessibility))
+      .catch(() => setAccessibility(false));
+  }, []);
+
+  async function requestAccessibility() {
+    setRequesting(true);
+    try {
+      const granted = await window.api.requestAccessibility();
+      setAccessibility(granted);
+      if (!granted) {
+        // Re-check after a short delay to catch System Settings approval
+        setTimeout(async () => {
+          const p = await window.api.checkPermissions();
+          setAccessibility(p.accessibility);
+          setRequesting(false);
+        }, 3000);
+      } else {
+        setRequesting(false);
+      }
+    } catch {
+      setRequesting(false);
+    }
+  }
+
   return (
     <div className="max-w-sm w-full space-y-6">
       <div className="text-center">
@@ -143,35 +172,63 @@ function PermissionsStep({ onNext }: { onNext: () => void }) {
           <Shield size={26} className="text-brand-400" />
         </div>
         <h2 className="text-2xl font-bold text-slate-100">Permissions</h2>
-        <p className="text-slate-500 text-sm mt-1">macOS will ask for these as you use Focus</p>
+        <p className="text-slate-500 text-sm mt-1">Two permissions make Focus work</p>
       </div>
 
-      <div className="space-y-3">
-        {PERMISSIONS.map((p) => (
-          <div key={p.title} className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/40">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-base">{p.icon}</span>
-              <p className="text-sm font-semibold text-slate-200">{p.title}</p>
-              <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                p.required
-                  ? 'bg-brand-900/60 text-brand-300 border border-brand-700/40'
-                  : 'bg-slate-700/60 text-slate-500 border border-slate-600/40'
-              }`}>
-                {p.required ? 'Required' : 'Optional'}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 leading-relaxed mb-1.5">{p.desc}</p>
-            <p className="text-[10px] text-slate-600 font-mono leading-relaxed">{p.path}</p>
+      {/* Accessibility — required */}
+      <div className={`p-4 rounded-xl border ${accessibility ? 'border-green-700/40 bg-green-950/20' : 'border-amber-700/40 bg-amber-950/20'}`}>
+        <div className="flex items-center gap-2 mb-2">
+          {accessibility
+            ? <ShieldCheck size={16} className="text-green-400 flex-shrink-0" />
+            : <ShieldAlert size={16} className="text-amber-400 flex-shrink-0" />
+          }
+          <p className="text-sm font-semibold text-slate-200">Accessibility</p>
+          <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-brand-900/60 text-brand-300 border border-brand-700/40">
+            Required
+          </span>
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed mb-3">
+          Lets Focus see which app and window are active — the core of activity tracking.
+        </p>
+        {accessibility ? (
+          <div className="flex items-center gap-1.5 text-xs text-green-400">
+            <CheckCircle size={12} />
+            Granted
           </div>
-        ))}
+        ) : (
+          <button
+            onClick={requestAccessibility}
+            disabled={requesting}
+            className="btn-primary text-xs py-1.5 w-full justify-center"
+          >
+            {requesting ? 'Opening System Settings…' : 'Grant Accessibility Access'}
+          </button>
+        )}
       </div>
 
-      <p className="text-xs text-slate-600 text-center">
-        macOS will prompt you automatically — just click Allow when asked.
-      </p>
+      {/* Automation — optional */}
+      <div className="p-4 rounded-xl border border-slate-700/40 bg-slate-800/40">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">🌐</span>
+          <p className="text-sm font-semibold text-slate-200">Automation (browser URL)</p>
+          <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-slate-700/60 text-slate-500 border border-slate-600/40">
+            Optional
+          </span>
+        </div>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Lets Focus read the current tab URL for accurate domain tracking. macOS will prompt when you use a supported browser.
+        </p>
+      </div>
+
+      {/* Screen Recording — optional note */}
+      <div className="p-3 bg-slate-800/30 rounded-xl border border-slate-700/30">
+        <p className="text-xs text-slate-500">
+          <span className="text-slate-400 font-medium">📸 Screen Recording</span> — only needed if you enable Vision Analysis in Settings → AI. You can enable it later.
+        </p>
+      </div>
 
       <button onClick={onNext} className="btn-primary w-full justify-center py-3">
-        Got it <ChevronRight size={18} />
+        {accessibility ? 'Continue' : 'Skip for now'} <ChevronRight size={18} />
       </button>
     </div>
   );

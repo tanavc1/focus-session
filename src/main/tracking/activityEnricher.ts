@@ -306,6 +306,45 @@ function parseSlack(title: string): AppContext {
   return { type: 'communication', document_name: parts[0], parsed_title: parts[0] ?? 'Slack' };
 }
 
+function parseZoom(title: string): AppContext {
+  // "Zoom Meeting" or "Meeting with John"
+  const cleaned = title.replace(/zoom/i, '').trim();
+  return { type: 'communication', document_name: cleaned || 'Video call', parsed_title: cleaned || 'Video call' };
+}
+
+function parseTeams(title: string): AppContext {
+  const parts = titleParts(title).filter((p) => !/^microsoft teams?$/i.test(p));
+  return { type: 'communication', document_name: parts[0], parsed_title: parts[0] ?? 'Teams' };
+}
+
+function parseMail(title: string): AppContext {
+  // "Re: Subject — Inbox" or "Inbox (3)"
+  const cleaned = title
+    .replace(/\s*[-–—|·•]\s*(inbox|sent|drafts|trash|archive).*$/i, '')
+    .replace(/\(\d+\)\s*/g, '')
+    .trim();
+  return { type: 'communication', document_name: cleaned || 'Email', parsed_title: cleaned || 'Email' };
+}
+
+function parseNotes(title: string): AppContext {
+  // "Note Title — Notes"
+  const doc = titleParts(title).find((p) => !/^notes$/i.test(p)) ?? title;
+  return { type: 'other', document_name: doc, parsed_title: doc };
+}
+
+function parseOfficeDoc(title: string, appName: string): AppContext {
+  // "Document.docx — Word" or "Spreadsheet.xlsx"
+  const parts = titleParts(title).filter((p) => !new RegExp(`^(microsoft\\s+)?${escapeRe(appName)}$`, 'i').test(p));
+  const doc = parts[0];
+  return { type: 'other', document_name: doc, parsed_title: doc ?? title };
+}
+
+function parsePreview(title: string): AppContext {
+  // "filename.pdf — Preview" or just "filename.pdf"
+  const doc = titleParts(title).find((p) => !/^preview$/i.test(p)) ?? title;
+  return { type: 'other', document_name: doc, parsed_title: doc };
+}
+
 function parseGeneric(title: string, appName: string): AppContext {
   // Strip the app name from the end of the title
   const cleaned = title.replace(new RegExp(`\\s*[-–|]\\s*${escapeRe(appName)}\\s*$`, 'i'), '').trim();
@@ -329,7 +368,7 @@ export function parseAppContext(appName: string | null, windowTitle: string | nu
 
   const a = appName.toLowerCase();
 
-  if (/code|cursor|vscodium|zed/.test(a)) return parseVSCode(title);
+  if (/code|cursor|vscodium|zed|nova|bbedit/.test(a)) return parseVSCode(title);
   if (/intellij|pycharm|webstorm|goland|rider|clion|phpstorm|android studio|rubymine|datagrip/.test(a)) return parseJetBrains(title);
   if (/xcode/.test(a)) return parseXcode(title);
   if (/terminal|iterm|warp|hyper|alacritty|kitty|ghostty/.test(a)) return parseTerminal(title);
@@ -339,6 +378,12 @@ export function parseAppContext(appName: string | null, windowTitle: string | nu
   if (/obsidian/.test(a)) return parseObsidian(title);
   if (/linear/.test(a)) return parseLinear(title);
   if (/slack/.test(a)) return parseSlack(title);
+  if (/zoom/.test(a)) return parseZoom(title);
+  if (/microsoft teams?/.test(a)) return parseTeams(title);
+  if (/^mail$|spark|mimestream|airmail/.test(a)) return parseMail(title);
+  if (/^notes$/.test(a)) return parseNotes(title);
+  if (/^preview$/.test(a)) return parsePreview(title);
+  if (/word|excel|powerpoint|pages|numbers|keynote/.test(a)) return parseOfficeDoc(title, appName);
 
   return parseGeneric(title, appName);
 }
@@ -432,6 +477,33 @@ export function analyzeUrlPath(domain: string | null, fullUrl: string | null): s
     return `${d} docs`;
   }
 
+  // ── Vercel / Netlify / deployment ─────────────────────────────────────────
+  if (d === 'vercel.com' || d === 'app.vercel.com') {
+    if (segs[0] === 'deployments' || segs[1] === 'deployments') return 'Vercel deployments';
+    return 'Vercel dashboard';
+  }
+
+  // ── Supabase ──────────────────────────────────────────────────────────────
+  if (d === 'supabase.com' || d === 'app.supabase.com') {
+    const table = parsed.pathname.match(/\/editor\/([^/]+)/);
+    if (table) return `Supabase: ${table[1]}`;
+    if (segs.includes('auth')) return 'Supabase Auth';
+    if (segs.includes('storage')) return 'Supabase Storage';
+    return 'Supabase dashboard';
+  }
+
+  // ── LeetCode / HackerRank ────────────────────────────────────────────────
+  if (d === 'leetcode.com') {
+    if (segs[0] === 'problems' && segs[1]) return `LeetCode: ${segs[1].replace(/-/g, ' ')}`;
+    return 'LeetCode';
+  }
+
+  // ── Medium / Substack / reading ───────────────────────────────────────────
+  if (d === 'medium.com' || d === 'www.medium.com') {
+    if (segs.length >= 2 && segs[0].startsWith('@')) return `Medium article`;
+    return 'Medium';
+  }
+
   return null;
 }
 
@@ -505,9 +577,11 @@ export function buildContextSummary(opts: {
         if (file_name && project_name) return `${appName ?? 'Design'}: ${file_name} — ${project_name}`;
         if (file_name)                 return `${appName ?? 'Design'}: ${file_name}`;
         return `Working in ${appName ?? 'design tool'}`;
-      case 'communication':
-        if (document_name) return `${appName ?? 'Chat'}: ${document_name}`;
+      case 'communication': {
+        const label = document_name?.replace(/^(re:|fwd:)\s*/i, '').trim();
+        if (label) return `${appName ?? 'Chat'}: ${label}`;
         return appName ?? 'Messaging';
+      }
       default:
         if (document_name) return `${appName ?? 'App'}: ${document_name}`;
         if (parsed_title)  return `${appName ?? 'App'}: ${parsed_title}`;
@@ -518,5 +592,7 @@ export function buildContextSummary(opts: {
   if (windowTitle && appName && windowTitle !== appName) {
     return `${appName}: ${stripSuffix(windowTitle)}`;
   }
-  return appName ?? 'Unknown activity';
+  // Return just the app name if known — empty string if truly nothing is available
+  // (empty string is filtered out by the UI so nothing renders rather than 'Unknown activity')
+  return appName ?? '';
 }

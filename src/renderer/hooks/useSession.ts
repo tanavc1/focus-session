@@ -1,4 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
+
+/** Canonical goal string used for Quick Start sessions. Shared to avoid brittle string comparisons. */
+export const QUICK_SESSION_GOAL = 'Open session — capturing all activity';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useAppStore } from '../store/useStore';
@@ -51,8 +54,7 @@ export function useSessionControl() {
   const quickStartSession = useCallback(async () => {
     const now = new Date();
     const title = `Quick Session · ${format(now, 'MMM d, h:mm a')}`;
-    const goal = 'Open session — capturing all activity';
-    return startSession(title, goal);
+    return startSession(title, QUICK_SESSION_GOAL);
   }, [startSession]);
 
   const endSession = useCallback(

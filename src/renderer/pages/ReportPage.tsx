@@ -8,6 +8,7 @@ import {
 import { format } from 'date-fns';
 import ActivityTimeline from '../components/ActivityTimeline';
 import { useAppStore } from '../store/useStore';
+import { QUICK_SESSION_GOAL } from '../hooks/useSession';
 import type { SessionReport, FlowPeriod } from '../../shared/types';
 
 const CLASS_COLORS: Record<string, string> = {
@@ -79,7 +80,7 @@ export default function ReportPage() {
   }
 
   const focusScore = computeFocusScore(report);
-  const isQuickSession = report.session.goal === 'Open session — capturing all activity';
+  const isQuickSession = report.session.goal === QUICK_SESSION_GOAL;
   const flowPeriods: FlowPeriod[] = report.flow_periods ?? [];
   const flowSecs = report.flow_seconds ?? 0;
   const nextGoals = todayPlan?.goals.filter((g) => !g.completed) ?? [];

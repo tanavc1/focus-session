@@ -10,7 +10,7 @@
  *  • Hard 3s timeout prevents a hung script from stalling the poll loop.
  */
 
-import { powerMonitor } from 'electron';
+import { powerMonitor, systemPreferences } from 'electron';
 import { exec }         from 'child_process';
 import { promisify }    from 'util';
 import { BROWSER_APP_NAMES } from '../config/defaults';
@@ -138,6 +138,14 @@ export async function captureActivity(
     return { app_name: null, window_title: null, browser_url: null, browser_domain: null, idle_seconds: idleSeconds, is_idle: true };
   }
 
+  // Check Accessibility permission WITHOUT prompting the user (false = don't ask).
+  // If not granted, fall back to lsappinfo which requires no special permission.
+  const hasAccessibility = systemPreferences.isTrustedAccessibilityClient(false);
+  if (!hasAccessibility) {
+    const app_name = await getFrontmostAppFallback();
+    return { app_name, window_title: null, browser_url: null, browser_domain: null, idle_seconds: idleSeconds, is_idle: false };
+  }
+
   // One script gets everything: app name, window title, and browser URL.
   const script  = buildUnifiedScript(enableBrowserTracking);
   const escaped = shellEscape(script);
@@ -158,8 +166,27 @@ export async function captureActivity(
 
     return { app_name, window_title, browser_url, browser_domain, idle_seconds: idleSeconds, is_idle: false };
   } catch {
-    // Script timed out or AppleScript permissions denied — return minimal stub.
-    return { app_name: null, window_title: null, browser_url: null, browser_domain: null, idle_seconds: idleSeconds, is_idle: false };
+    // Script timed out — try lsappinfo as a last resort.
+    const app_name = await getFrontmostAppFallback();
+    return { app_name, window_title: null, browser_url: null, browser_domain: null, idle_seconds: idleSeconds, is_idle: false };
+  }
+}
+
+// ─── lsappinfo fallback (no Accessibility permission needed) ─────────────────
+// lsappinfo is a macOS built-in that returns the frontmost app without requiring
+// Accessibility permission. Used when the user hasn't granted Accessibility yet.
+
+async function getFrontmostAppFallback(): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync('lsappinfo front', { timeout: 1_000 });
+    // lsappinfo output starts with: (pid) "App Name" ASN:... bundleID:...
+    const m = stdout.match(/"([^"]+)"/);
+    const name = m?.[1]?.trim();
+    // Filter out system processes that aren't real apps
+    if (!name || name === 'loginwindow' || name === 'Dock' || name === 'NotificationCenter') return null;
+    return name;
+  } catch {
+    return null;
   }
 }
 

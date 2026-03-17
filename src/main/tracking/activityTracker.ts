@@ -13,7 +13,7 @@
  *  • Settings cached 60 s so the poll loop never hits the DB for config.
  */
 
-import { BrowserWindow, Notification } from 'electron';
+import { BrowserWindow, Notification, systemPreferences } from 'electron';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
@@ -131,6 +131,13 @@ function isCpuOverloaded(): boolean {
 // main thread. This replaces desktopCapturer which caused Mac freezes.
 
 async function takeScreenshot(): Promise<{ data: string; mimeType: 'image/png' } | null> {
+  // Check screen recording permission WITHOUT prompting.
+  // 'not-determined' or 'denied' → skip silently. Only 'granted' proceeds.
+  // This prevents repeated permission pop-ups when the user hasn't granted access.
+  const screenStatus = systemPreferences.getMediaAccessStatus('screen');
+  if (screenStatus !== 'granted') {
+    return null;
+  }
   if (isCpuOverloaded()) {
     console.log('[Vision] CPU overloaded - skipping screenshot');
     return null;
@@ -275,6 +282,17 @@ async function poll(sessionId: string): Promise<void> {
 
     // ── Idle seconds tracking (for accurate idle detection) ──────────────────
     state.lastIdleSeconds = raw.idle_seconds ?? 0;
+
+    // Reset flow if idle for more than 5 minutes — otherwise a 2-hour sleep would
+    // leave the user "in flow" when they return, which is clearly wrong.
+    if (raw.is_idle && (raw.idle_seconds ?? 0) > 300) {
+      if (state.inFlow) {
+        console.log(`[Flow] Exited — idle for ${Math.round((raw.idle_seconds ?? 0) / 60)} min`);
+      }
+      state.consecutiveFocusSeconds = 0;
+      state.inFlow        = false;
+      state.flowStartedAt = null;
+    }
 
     // ── DB write (deduplicated) ──────────────────────────────────────────────
     const eventKey       = `${raw.app_name}::${raw.window_title}::${raw.browser_domain}::${raw.is_idle ? 1 : 0}`;

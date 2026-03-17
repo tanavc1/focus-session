@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, systemPreferences, shell } from 'electron';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -50,6 +50,8 @@ function err(error: string): IpcResponse<never> {
 // ─── Screenshot helper (CLI subprocess, non-blocking) ────────────────────────
 
 async function takeScreenshot(): Promise<{ data: string; mimeType: 'image/png' } | null> {
+  // Check screen recording permission first — prevents repeated macOS permission dialogs.
+  if (systemPreferences.getMediaAccessStatus('screen') !== 'granted') return null;
   const tmp = `/tmp/focus-snap-${Date.now()}.png`;
   try {
     await execAsync(`screencapture -x -m -t png "${tmp}"`, { timeout: 5_000 });
@@ -395,6 +397,30 @@ export function registerIpcHandlers(): void {
       const flowSeconds = periods.reduce((a, p) => a + p.duration_seconds, 0);
       return ok({ periods, flow_seconds: flowSeconds });
     } catch (e) { return err(String(e)); }
+  });
+
+  // ─── Permissions ───────────────────────────────────────────────────────────
+
+  ipcMain.handle('permissions:check', () => {
+    return {
+      accessibility:    systemPreferences.isTrustedAccessibilityClient(false),
+      screen_recording: systemPreferences.getMediaAccessStatus('screen') === 'granted',
+    };
+  });
+
+  // Open the Accessibility pane — prompts the user if not yet granted.
+  ipcMain.handle('permissions:request-accessibility', () => {
+    // Passing true triggers macOS to show the permission dialog (if not yet granted).
+    const trusted = systemPreferences.isTrustedAccessibilityClient(true);
+    if (!trusted) {
+      // Also open System Settings as a fallback for macOS 13+ where dialog alone may not suffice.
+      shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
+    }
+    return trusted;
+  });
+
+  ipcMain.handle('permissions:open-screen-recording', () => {
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
   });
 
   // ─── AI/LLM status handler ────────────────────────────────────────────────
