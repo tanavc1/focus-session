@@ -281,18 +281,10 @@ export default function ActiveSessionPage() {
       {/* Spotify now playing */}
       {spotifyTrack && (
         <div className="flex items-center gap-2.5 px-3 py-2.5 bg-[#121212] border border-[#282828] rounded-xl">
-          {/* Album art or Spotify logo */}
-          {spotifyTrack.artwork_url ? (
-            <img
-              src={spotifyTrack.artwork_url}
-              alt="Album art"
-              className="w-9 h-9 rounded-md flex-shrink-0 object-cover"
-            />
-          ) : (
-            <div className="w-9 h-9 rounded-md bg-[#1DB954]/10 flex items-center justify-center flex-shrink-0">
-              <SpotifyIcon size={20} />
-            </div>
-          )}
+          {/* Spotify logo */}
+          <div className="w-9 h-9 rounded-md bg-[#1DB954]/10 flex items-center justify-center flex-shrink-0">
+            <SpotifyIcon size={20} />
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 mb-0.5">
               <SpotifyIcon size={11} className="flex-shrink-0" />
