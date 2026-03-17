@@ -14,4 +14,11 @@ export default defineConfig({
   css: {
     postcss: path.resolve(__dirname, 'postcss.config.js'),
   },
+  build: {
+    // Must be absolute so it resolves relative to the project root, not src/renderer/.
+    // Without this, the VitePlugin's ignore filter (which only includes /.vite/) can't
+    // find the renderer output and it never makes it into the asar → blank screen.
+    outDir: path.resolve(__dirname, '.vite/renderer/main_window'),
+    emptyOutDir: true,
+  },
 });
