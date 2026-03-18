@@ -38,15 +38,24 @@ export default function ReportPage() {
     if (forceRefresh) setIsRefreshing(true);
     else setIsLoading(true);
     setError(null);
-    const res = await window.api.getSessionReport(sessionId, forceRefresh);
-    if (res.success && res.data) {
-      setReport(res.data);
-      setExcluded(!!res.data.session.excluded);
-    } else {
-      setError(res.error ?? 'Failed to load report');
+    try {
+      // 90s timeout — LLM calls can be slow but shouldn't hang forever
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Report generation timed out. Try refreshing.')), 90_000)
+      );
+      const res = await Promise.race([window.api.getSessionReport(sessionId, forceRefresh), timeout]);
+      if (res.success && res.data) {
+        setReport(res.data);
+        setExcluded(!!res.data.session.excluded);
+      } else {
+        setError(res.error ?? 'Failed to load report');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load report');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
-    setIsLoading(false);
-    setIsRefreshing(false);
   }
 
   async function handleToggleExcluded() {

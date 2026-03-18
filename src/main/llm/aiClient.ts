@@ -139,8 +139,11 @@ export function parseLlmResponse(response: string): {
     }
   }
 
+  // Fallback: if no summary found (model only returned bullets), use full cleaned text
+  const summary = summaryLines.join(' ').trim() || cleaned;
+
   return {
-    summary: summaryLines.join(' ').trim(),
+    summary,
     suggestions: suggestions.slice(0, 5),
   };
 }
@@ -243,7 +246,7 @@ async function generateClaude(
   userPrompt: string
 ): Promise<string | null> {
   try {
-    const client = new Anthropic({ apiKey });
+    const client = new Anthropic({ apiKey, timeout: 60_000 });
     const message = await client.messages.create({
       model,
       max_tokens: 1024,
@@ -265,7 +268,7 @@ async function analyzeScreenshotClaude(
   mimeType: 'image/jpeg' | 'image/png' = 'image/jpeg'
 ): Promise<string | null> {
   try {
-    const client = new Anthropic({ apiKey });
+    const client = new Anthropic({ apiKey, timeout: 30_000 });
     const message = await client.messages.create({
       model,
       max_tokens: 256,
@@ -299,7 +302,7 @@ async function generateOpenAI(
   userPrompt: string
 ): Promise<string | null> {
   try {
-    const client = new OpenAI({ apiKey });
+    const client = new OpenAI({ apiKey, timeout: 60_000 });
     const completion = await client.chat.completions.create({
       model,
       max_tokens: 1024,
@@ -323,7 +326,7 @@ async function analyzeScreenshotOpenAI(
   mimeType: 'image/jpeg' | 'image/png' = 'image/jpeg'
 ): Promise<string | null> {
   try {
-    const client = new OpenAI({ apiKey });
+    const client = new OpenAI({ apiKey, timeout: 30_000 });
     const completion = await client.chat.completions.create({
       model,
       max_tokens: 256,

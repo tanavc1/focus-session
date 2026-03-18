@@ -247,11 +247,17 @@ function captureAndAnalyzeAsync(sessionId: string, trigger: 'context-change' | '
       const shot = await takeScreenshot();
       if (!shot) return;
 
+      // Guard: abort if session ended or changed while screenshot was being taken
+      if (!state.isRunning || state.sessionId !== sessionId) return;
+
       const settings = getCachedSettings();
       if (!settings.vision_enabled || !settings.vision_model) return;
 
       const description = await analyzeScreenshot(settings, shot.data, shot.mimeType as 'image/png' | 'image/jpeg');
       if (!description) return;
+
+      // Guard again after the (potentially slow) LLM call
+      if (!state.isRunning || state.sessionId !== sessionId) return;
 
       state.lastVisionDescription = description;
       const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -425,7 +431,8 @@ async function poll(sessionId: string): Promise<void> {
     // ── Broadcast ────────────────────────────────────────────────────────────
     _activityCallback?.(activity);
     BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed()) win.webContents.send('activity:update', activity);
+      if (win.isDestroyed()) return;
+      try { win.webContents.send('activity:update', activity); } catch { /* window destroyed mid-send */ }
     });
   } catch (err) {
     console.error('[Tracker] Poll error:', err);

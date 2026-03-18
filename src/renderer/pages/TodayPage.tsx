@@ -85,22 +85,28 @@ export default function TodayPage() {
   const toggleGoal = useCallback(async (goal: DayGoal) => {
     if (!todayPlan) return;
     setGoalUpdating(goal.id);
-    const updated = goals.map((g) => g.id === goal.id ? { ...g, completed: !g.completed } : g);
-    const res = await window.api.setDayPlan({
-      id:                   todayPlan.id,
-      date:                 todayIso(),
-      goals:                updated,
-      target_focus_minutes: todayPlan.target_focus_minutes,
-      morning_intention:    todayPlan.morning_intention,
-    });
-    if (res.success && res.data) setTodayPlan(res.data);
-    setGoalUpdating(null);
+    try {
+      const updated = goals.map((g) => g.id === goal.id ? { ...g, completed: !g.completed } : g);
+      const res = await window.api.setDayPlan({
+        id:                   todayPlan.id,
+        date:                 todayIso(),
+        goals:                updated,
+        target_focus_minutes: todayPlan.target_focus_minutes,
+        morning_intention:    todayPlan.morning_intention,
+      });
+      if (res.success && res.data) setTodayPlan(res.data);
+    } catch (e) {
+      console.error('[TodayPage] toggleGoal failed:', e);
+    } finally {
+      setGoalUpdating(null);
+    }
   }, [todayPlan, goals, setTodayPlan]);
 
   async function handleQuickStart() {
     setQuickStarting(true);
     try { await quickStartSession(); }
-    catch { setQuickStarting(false); }
+    catch { /* navigation won't happen — reset */ }
+    finally { setQuickStarting(false); }
   }
 
   async function handleFocusedStart(e?: React.FormEvent) {
@@ -109,9 +115,8 @@ export default function TodayPage() {
     setFocusStarting(true);
     try {
       await startSession(focusTitle.trim(), focusGoal.trim() || focusTitle.trim(), focusDuration || undefined);
-    } catch {
-      setFocusStarting(false);
-    }
+    } catch { /* navigation won't happen — reset */ }
+    finally { setFocusStarting(false); }
   }
 
   function startWithGoal(goal: DayGoal) {

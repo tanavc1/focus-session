@@ -92,10 +92,15 @@ app.whenReady().then(() => {
 
   // Handle download request from renderer — only allow HTTPS GitHub URLs
   ipcMain.handle('update:download', (_event, url: string) => {
-    if (typeof url === 'string' && /^https:\/\/github\.com\//i.test(url)) {
-      openDownloadUrl(url);
-    } else {
-      console.warn('[Updater] Rejected download URL (not a GitHub HTTPS link):', url);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:' && parsed.hostname === 'github.com') {
+        openDownloadUrl(url);
+      } else {
+        console.warn('[Updater] Rejected download URL (not a GitHub HTTPS link):', url);
+      }
+    } catch {
+      console.warn('[Updater] Rejected invalid download URL:', url);
     }
   });
 
@@ -118,23 +123,33 @@ app.whenReady().then(() => {
   // ── Lid close / system sleep → pause tracking ────────────────────────────
   powerMonitor.on('suspend', () => {
     console.log('[Power] System suspending — pausing active session tracking');
-    const session = getActiveSession();
-    if (session) {
-      stopTracking();
-      BrowserWindow.getAllWindows().forEach((w) => {
-        if (!w.isDestroyed()) w.webContents.send('session:suspended');
-      });
+    try {
+      const session = getActiveSession();
+      if (session) {
+        stopTracking();
+        BrowserWindow.getAllWindows().forEach((w) => {
+          if (w.isDestroyed()) return;
+          try { w.webContents.send('session:suspended'); } catch { /* window gone */ }
+        });
+      }
+    } catch (e) {
+      console.error('[Power] suspend handler error:', e);
     }
   });
 
   powerMonitor.on('resume', () => {
     console.log('[Power] System resumed — resuming active session tracking');
-    const session = getActiveSession();
-    if (session) {
-      startTracking(session.id);
-      BrowserWindow.getAllWindows().forEach((w) => {
-        if (!w.isDestroyed()) w.webContents.send('session:resumed');
-      });
+    try {
+      const session = getActiveSession();
+      if (session) {
+        startTracking(session.id);
+        BrowserWindow.getAllWindows().forEach((w) => {
+          if (w.isDestroyed()) return;
+          try { w.webContents.send('session:resumed'); } catch { /* window gone */ }
+        });
+      }
+    } catch (e) {
+      console.error('[Power] resume handler error:', e);
     }
   });
 
