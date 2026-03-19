@@ -66,43 +66,53 @@ function isNewer(remote: string, local: string): boolean {
 /** Broadcast update info to all renderer windows. */
 function broadcast(version: string, downloadUrl: string, releaseUrl: string) {
   BrowserWindow.getAllWindows().forEach((w) => {
-    if (!w.isDestroyed()) {
-      w.webContents.send('update:available', { version, downloadUrl, releaseUrl });
-    }
+    if (w.isDestroyed()) return;
+    try { w.webContents.send('update:available', { version, downloadUrl, releaseUrl }); }
+    catch { /* window destroyed mid-send */ }
   });
 }
 
-/** Schedule an update check 15 s after app is ready. */
+/** Run a single update check and broadcast if newer version found. */
+async function runUpdateCheck(): Promise<void> {
+  try {
+    const release = await fetchLatestRelease();
+    if (!release) return;
+
+    const remoteVersion = release.tag_name;
+    const localVersion  = app.getVersion();
+
+    console.log(`[Updater] Local: v${localVersion} / Remote: ${remoteVersion}`);
+
+    if (!isNewer(remoteVersion, localVersion)) {
+      console.log('[Updater] App is up to date.');
+      return;
+    }
+
+    // Find the DMG asset URL, fall back to release page
+    const dmgAsset = release.assets.find((a) => a.name.endsWith('.dmg'));
+    const downloadUrl = dmgAsset?.browser_download_url
+      ?? `https://github.com/${GITHUB_REPO}/releases/latest/download/Focus.dmg`;
+
+    console.log(`[Updater] Update available: ${remoteVersion}`);
+    broadcast(remoteVersion, downloadUrl, release.html_url);
+  } catch (err) {
+    console.warn('[Updater] Check failed (non-fatal):', err);
+  }
+}
+
+const RECHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // re-check every 4 hours
+
+/** Schedule an update check 15 s after app is ready, then every 4 hours. */
 export function scheduleUpdateCheck(): void {
   // Skip in development — package.json version is 1.0.0 which would always
   // appear outdated compared to production releases.
   if (!app.isPackaged) return;
 
-  setTimeout(async () => {
-    try {
-      const release = await fetchLatestRelease();
-      if (!release) return;
-
-      const remoteVersion = release.tag_name;
-      const localVersion  = app.getVersion();
-
-      console.log(`[Updater] Local: v${localVersion} / Remote: ${remoteVersion}`);
-
-      if (!isNewer(remoteVersion, localVersion)) {
-        console.log('[Updater] App is up to date.');
-        return;
-      }
-
-      // Find the DMG asset URL, fall back to release page
-      const dmgAsset = release.assets.find((a) => a.name.endsWith('.dmg'));
-      const downloadUrl = dmgAsset?.browser_download_url
-        ?? `https://github.com/${GITHUB_REPO}/releases/latest/download/Focus.dmg`;
-
-      console.log(`[Updater] Update available: ${remoteVersion}`);
-      broadcast(remoteVersion, downloadUrl, release.html_url);
-    } catch (err) {
-      console.warn('[Updater] Check failed (non-fatal):', err);
-    }
+  setTimeout(() => {
+    runUpdateCheck();
+    // Keep checking every 4 hours so users who leave the app open all day
+    // still get notified without needing to restart.
+    setInterval(runUpdateCheck, RECHECK_INTERVAL_MS);
   }, CHECK_DELAY_MS);
 }
 
