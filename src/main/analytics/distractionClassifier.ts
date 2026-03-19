@@ -134,6 +134,60 @@ function matchTitle(
   return null;
 }
 
+// ─── Domain heuristics (fires only when no DB rule matched) ──────────────────
+
+/**
+ * Classify a browser domain using built-in heuristics.
+ * Only called when no explicit DB rule matched — user DB rules take priority.
+ * Uses suffix matching so subdomains work: app.vercel.com matches vercel.com.
+ */
+function heuristicDomainClassify(domain: string): ClassificationType | null {
+  const d = domain.toLowerCase();
+  const matches = (pattern: string) => d === pattern || d.endsWith(`.${pattern}`);
+
+  // Productive: dev tools, AI assistants, documentation, deployment, project management
+  const productive = [
+    'github.com', 'gitlab.com', 'bitbucket.org',
+    'stackoverflow.com', 'stackexchange.com',
+    'chatgpt.com', 'claude.ai', 'gemini.google.com', 'perplexity.ai',
+    'vercel.com', 'netlify.com', 'railway.app', 'fly.io', 'render.com',
+    'supabase.com', 'firebase.google.com',
+    'aws.amazon.com', 'cloud.google.com', 'portal.azure.com', 'console.aws.amazon.com',
+    'npmjs.com', 'pypi.org', 'crates.io', 'pkg.go.dev',
+    'tailwindcss.com', 'react.dev', 'nextjs.org', 'vuejs.org', 'svelte.dev', 'angular.io',
+    'developer.mozilla.org', 'developer.apple.com', 'docs.github.com',
+    'figma.com', 'linear.app', 'notion.so',
+    'atlassian.net', 'atlassian.com',
+    'leetcode.com', 'hackerrank.com', 'codepen.io', 'codesandbox.io',
+    'stripe.com', 'posthog.com', 'datadog.com', 'sentry.io', 'mixpanel.com',
+    'planetscale.com', 'neon.tech', 'upstash.com',
+    'cursor.sh', 'replit.com', 'val.town',
+  ];
+  if (productive.some(matches)) return 'productive';
+
+  // Distracting: social media, streaming, entertainment
+  const distracting = [
+    'instagram.com', 'facebook.com', 'tiktok.com', 'snapchat.com',
+    'twitch.tv', 'netflix.com', 'hulu.com', 'disneyplus.com', 'primevideo.com',
+    '9gag.com', 'buzzfeed.com', 'pinterest.com', 'tumblr.com',
+  ];
+  if (distracting.some(matches)) return 'distracting';
+
+  // Neutral: news, search, general reading, communication
+  const neutral = [
+    'reddit.com', 'news.ycombinator.com',
+    'medium.com', 'substack.com', 'dev.to', 'hashnode.com',
+    'wikipedia.org', 'google.com', 'bing.com', 'duckduckgo.com',
+    'gmail.com', 'mail.google.com', 'outlook.com', 'yahoo.com',
+    'calendar.google.com', 'maps.google.com',
+    'youtube.com', 'twitter.com', 'x.com',
+    'nytimes.com', 'wsj.com', 'bbc.com', 'cnn.com', 'theguardian.com',
+  ];
+  if (neutral.some(matches)) return 'neutral';
+
+  return null;
+}
+
 /**
  * Heuristic fallbacks when no explicit rule matches.
  */
@@ -144,10 +198,11 @@ function heuristicClassify(
 ): ClassificationType | null {
   const app = app_name.toLowerCase();
 
-  // Common browser names without domain → neutral (domain determines classification)
+  // Common browsers: use domain heuristics when domain is present, else neutral
   const browsers = ['safari', 'chrome', 'firefox', 'arc', 'brave', 'edge', 'opera', 'vivaldi', 'orion'];
   if (browsers.some((b) => app.includes(b))) {
-    return browser_domain ? null : 'neutral';
+    if (browser_domain) return heuristicDomainClassify(browser_domain);
+    return 'neutral';
   }
 
   // Terminal-like apps → productive

@@ -14,13 +14,22 @@ import type { SessionReport, Settings, AiProvider } from '../../shared/types';
 import { formatDuration, focusScore } from '../analytics/sessionAnalyzer';
 
 // ─── Vision prompt ────────────────────────────────────────────────────────────
+//
+// Design goals:
+//  • Short = fewer input tokens = cheaper on Claude/OpenAI, faster on Ollama
+//  • Structured 2-sentence format = consistent, easy to parse
+//  • Examples = models follow the format reliably
+//  • "Quote literally" = prevents generic descriptions like "coding"
 
 const VISION_PROMPT =
-  'Analyze this screenshot of a computer screen. Respond in 2-3 sentences that describe:\n' +
-  '1. The exact application open and what the user is actively doing (be precise — e.g. "writing a React component in VS Code", not just "coding").\n' +
-  '2. The specific content visible: file name, document title, article headline, video title, website name, or any readable text that identifies what they are working on.\n' +
-  '3. Whether this looks productive, neutral, or distracting, and why.\n' +
-  'Read visible text literally — titles, filenames, headlines, code identifiers — and include them in your answer. Be factual and concise.';
+  'You are a productivity tracker analyzing a screenshot. Respond in exactly 2 sentences:\n' +
+  '1. App + exact action — quote any visible filename, function/class name, article title, video title, repo name, or URL path literally.\n' +
+  '2. Classification (productive / neutral / distracting) with one specific reason.\n\n' +
+  'Examples:\n' +
+  '"Writing function processPayment() in VS Code, file src/api/payments.ts in project stripe-app. Productive — implementing core payment logic."\n' +
+  '"Watching YouTube video \'Next.js App Router Explained\'. Neutral — tutorial, unclear if work-related."\n' +
+  '"Scrolling Instagram home feed. Distracting — social media unrelated to any work task."\n\n' +
+  'Be precise. Quote visible text. Never use vague phrases like "appears to be coding".';
 
 // ─── System prompt (language model) ──────────────────────────────────────────
 

@@ -212,6 +212,12 @@ export interface CurrentActivity {
   // Flow state
   in_flow?: boolean;                   // Currently in a flow state
   flow_duration_seconds?: number;      // Seconds in current flow period
+  // Live session stats (updated every poll — drives real-time UI)
+  live_focus_seconds?: number;         // Productive seconds this session
+  live_distracted_seconds?: number;    // Distracting seconds this session
+  live_idle_seconds?: number;          // Idle seconds this session
+  live_context_switches?: number;      // App switches (non-idle) this session
+  focus_streak_seconds?: number;       // Current consecutive productive run (builds toward flow)
 }
 
 // IPC response wrapper

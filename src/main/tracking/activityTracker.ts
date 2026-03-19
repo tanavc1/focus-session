@@ -84,6 +84,13 @@ interface TrackerState {
   wasIdleLastPoll: boolean;
   idleResumedAt:   number | null;
   lastIdleSeconds: number;
+
+  // Live accumulated stats for real-time display
+  liveFocusSeconds:      number;
+  liveDistractedSeconds: number;
+  liveIdleSeconds:       number;
+  liveContextSwitches:   number;
+  liveLastNonIdleApp:    string | null;
 }
 
 const state: TrackerState = {
@@ -114,6 +121,12 @@ const state: TrackerState = {
   wasIdleLastPoll: false,
   idleResumedAt:   null,
   lastIdleSeconds: 0,
+
+  liveFocusSeconds:      0,
+  liveDistractedSeconds: 0,
+  liveIdleSeconds:       0,
+  liveContextSwitches:   0,
+  liveLastNonIdleApp:    null,
 };
 
 // ─── CPU load check ───────────────────────────────────────────────────────────
@@ -182,6 +195,11 @@ export function startTracking(sessionId: string): void {
     wasIdleLastPoll:             false,
     idleResumedAt:               null,
     lastIdleSeconds:             0,
+    liveFocusSeconds:            0,
+    liveDistractedSeconds:       0,
+    liveIdleSeconds:             0,
+    liveContextSwitches:         0,
+    liveLastNonIdleApp:          null,
   });
 
   console.log(`[Tracker] Starting session ${sessionId}`);
@@ -218,6 +236,11 @@ export function stopTracking(): void {
     wasIdleLastPoll:             false,
     idleResumedAt:               null,
     lastIdleSeconds:             0,
+    liveFocusSeconds:            0,
+    liveDistractedSeconds:       0,
+    liveIdleSeconds:             0,
+    liveContextSwitches:         0,
+    liveLastNonIdleApp:          null,
   });
   console.log('[Tracker] Stopped');
 }
@@ -325,6 +348,25 @@ async function poll(sessionId: string): Promise<void> {
       raw.app_name, raw.browser_domain, raw.window_title, raw.is_idle,
     );
 
+    // ── Live stats accumulation ──────────────────────────────────────────────
+    // Accumulate per-poll so the renderer can show a real-time focus score
+    // and breakdown without waiting for the session to end.
+    const pollSec = settings.tracking_interval_ms / 1000;
+    if (raw.is_idle) {
+      state.liveIdleSeconds += pollSec;
+    } else if (classification === 'productive') {
+      state.liveFocusSeconds += pollSec;
+    } else if (classification === 'distracting') {
+      state.liveDistractedSeconds += pollSec;
+    }
+    // Count non-idle app transitions as context switches
+    if (!raw.is_idle && raw.app_name) {
+      if (state.liveLastNonIdleApp !== null && state.liveLastNonIdleApp !== raw.app_name) {
+        state.liveContextSwitches++;
+      }
+      state.liveLastNonIdleApp = raw.app_name;
+    }
+
     // ── Context enrichment ───────────────────────────────────────────────────
     const appContext = raw.browser_domain
       ? null
@@ -403,6 +445,12 @@ async function poll(sessionId: string): Promise<void> {
       last_vision_description: state.lastVisionDescription ?? undefined,
       in_flow:               state.inFlow,
       flow_duration_seconds: state.inFlow ? Math.round(state.consecutiveFocusSeconds) : undefined,
+      // Live stats — drives real-time score + breakdown in ActiveSessionPage
+      live_focus_seconds:      Math.round(state.liveFocusSeconds),
+      live_distracted_seconds: Math.round(state.liveDistractedSeconds),
+      live_idle_seconds:       Math.round(state.liveIdleSeconds),
+      live_context_switches:   state.liveContextSwitches,
+      focus_streak_seconds:    Math.round(state.consecutiveFocusSeconds),
     };
 
     state.lastActivity = activity;

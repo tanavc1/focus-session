@@ -504,6 +504,95 @@ export function analyzeUrlPath(domain: string | null, fullUrl: string | null): s
     return 'Medium';
   }
 
+  // ── ChatGPT ────────────────────────────────────────────────────────────────
+  if (d === 'chatgpt.com' || d === 'chat.openai.com') {
+    if (segs[0] === 'c') return 'ChatGPT conversation';
+    if (segs[0] === 'gpts') return 'ChatGPT: custom GPT';
+    return 'ChatGPT';
+  }
+
+  // ── Claude.ai ─────────────────────────────────────────────────────────────
+  if (d === 'claude.ai') {
+    if (segs[0] === 'chat') return 'Claude conversation';
+    return 'Claude AI';
+  }
+
+  // ── Perplexity ────────────────────────────────────────────────────────────
+  if (d === 'perplexity.ai' || d === 'www.perplexity.ai') {
+    return 'Perplexity AI search';
+  }
+
+  // ── Hacker News ───────────────────────────────────────────────────────────
+  if (d === 'news.ycombinator.com') {
+    if (segs[0] === 'item') return 'Hacker News thread';
+    if (segs[0] === 'submit') return 'Submitting to Hacker News';
+    return 'Hacker News';
+  }
+
+  // ── Substack ──────────────────────────────────────────────────────────────
+  if (d === 'substack.com' || d.endsWith('.substack.com')) {
+    if (segs[0] === 'p') return 'Substack article';
+    return 'Substack newsletter';
+  }
+
+  // ── npm ───────────────────────────────────────────────────────────────────
+  if (d === 'npmjs.com' || d === 'www.npmjs.com') {
+    if (segs[0] === 'package' && segs[1]) return `npm: ${segs[1]}`;
+    return 'npm registry';
+  }
+
+  // ── Jira / Confluence (Atlassian) ─────────────────────────────────────────
+  if (d.endsWith('atlassian.net') || d.endsWith('atlassian.com')) {
+    const issueM = parsed.pathname.match(/\/browse\/([A-Z]+-\d+)/);
+    if (issueM) return `Jira: ${issueM[1]}`;
+    if (parsed.pathname.includes('/wiki')) return 'Confluence';
+    if (parsed.pathname.includes('/board')) return 'Jira board';
+    if (parsed.pathname.includes('/jira')) return 'Jira';
+    return 'Atlassian';
+  }
+
+  // ── AWS Console ───────────────────────────────────────────────────────────
+  if (d.includes('console.aws') || (d.includes('aws.amazon') && segs.length > 0)) {
+    const svc = segs[0];
+    if (svc) return `AWS ${svc.toUpperCase()}`;
+    return 'AWS Console';
+  }
+
+  // ── Stripe dashboard ──────────────────────────────────────────────────────
+  if (d === 'dashboard.stripe.com') {
+    if (segs[0] === 'payments') return 'Stripe: payments';
+    if (segs[0] === 'customers') return 'Stripe: customers';
+    if (segs[0] === 'products') return 'Stripe: products';
+    if (segs[0] === 'connect') return 'Stripe: connect';
+    return 'Stripe dashboard';
+  }
+
+  // ── Dev.to ────────────────────────────────────────────────────────────────
+  if (d === 'dev.to' || d === 'www.dev.to') {
+    return 'dev.to article';
+  }
+
+  // ── Sentry / observability ────────────────────────────────────────────────
+  if (d === 'sentry.io' || d.endsWith('.sentry.io')) {
+    if (parsed.pathname.includes('/issues')) return 'Sentry: issues';
+    if (parsed.pathname.includes('/performance')) return 'Sentry: performance';
+    return 'Sentry';
+  }
+
+  // ── Posthog ───────────────────────────────────────────────────────────────
+  if (d === 'app.posthog.com' || d === 'posthog.com') {
+    return 'PostHog analytics';
+  }
+
+  // ── Google Docs / Sheets / Slides ────────────────────────────────────────
+  if (d === 'docs.google.com') {
+    if (segs[0] === 'document') return 'Google Docs';
+    if (segs[0] === 'spreadsheets') return 'Google Sheets';
+    if (segs[0] === 'presentation') return 'Google Slides';
+    if (segs[0] === 'forms') return 'Google Forms';
+    return 'Google Docs';
+  }
+
   return null;
 }
 

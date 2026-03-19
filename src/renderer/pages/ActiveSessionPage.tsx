@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Square, Monitor, Globe, Zap, Coffee, Minus, AlertTriangle, Play, Target, Eye, ShieldAlert } from 'lucide-react';
+import { Square, Monitor, Globe, Zap, Coffee, Minus, AlertTriangle, Play, Target, Eye, ShieldAlert, ArrowLeftRight, Flame, TrendingUp } from 'lucide-react';
 import { useAppStore } from '../store/useStore';
 import { useActivitySubscription, useSessionControl, QUICK_SESSION_GOAL } from '../hooks/useSession';
 import type { ClassificationType } from '../../shared/types';
@@ -194,6 +194,17 @@ export default function ActiveSessionPage() {
         </div>
       )}
 
+      {/* ── Live session stats ───────────────────────────────────────────────── */}
+      <LiveStatsCard
+        elapsed={elapsed}
+        focusSec={currentActivity?.live_focus_seconds ?? 0}
+        distractedSec={currentActivity?.live_distracted_seconds ?? 0}
+        idleSec={currentActivity?.live_idle_seconds ?? 0}
+        contextSwitches={currentActivity?.live_context_switches ?? 0}
+        streakSec={currentActivity?.focus_streak_seconds ?? 0}
+        inFlow={currentActivity?.in_flow ?? false}
+      />
+
       {/* Current activity */}
       <div className="card space-y-3">
         <div className="flex items-center justify-between">
@@ -355,6 +366,128 @@ export default function ActiveSessionPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Live Stats Card ──────────────────────────────────────────────────────────
+
+const FLOW_THRESHOLD_SEC = 25 * 60; // must match activityTracker constant
+
+function liveFocusScore(focusSec: number, distractedSec: number, elapsed: number, idleSec: number): number | null {
+  const active = elapsed - idleSec;
+  if (active < 30) return null; // not enough data yet
+  const raw = ((focusSec - distractedSec * 0.5) / active) * 100;
+  return Math.round(Math.max(0, Math.min(100, raw)));
+}
+
+function scoreColor(score: number): string {
+  if (score >= 75) return 'text-green-400';
+  if (score >= 50) return 'text-amber-400';
+  return 'text-red-400';
+}
+
+function fmtMin(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
+}
+
+function LiveStatsCard({
+  elapsed, focusSec, distractedSec, idleSec, contextSwitches, streakSec, inFlow,
+}: {
+  elapsed: number;
+  focusSec: number;
+  distractedSec: number;
+  idleSec: number;
+  contextSwitches: number;
+  streakSec: number;
+  inFlow: boolean;
+}) {
+  const active = Math.max(1, elapsed - idleSec);
+  const score = liveFocusScore(focusSec, distractedSec, elapsed, idleSec);
+  const focusPct = Math.round((focusSec / active) * 100);
+  const distractPct = Math.round((distractedSec / active) * 100);
+
+  // Only render once there's meaningful data
+  if (elapsed < 15) return null;
+
+  // Streak-to-flow: show when not in flow but streak is building (> 2 min)
+  const streakToFlowSec = FLOW_THRESHOLD_SEC - streakSec;
+  const showStreak = !inFlow && streakSec >= 120;
+  const streakPct = Math.min(100, Math.round((streakSec / FLOW_THRESHOLD_SEC) * 100));
+
+  return (
+    <div className="card space-y-3">
+      {/* Header row: label + live score */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <TrendingUp size={12} className="text-slate-500" />
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">This Session</span>
+        </div>
+        {score !== null && (
+          <div className={`text-base font-bold tabular-nums ${scoreColor(score)}`}>
+            {score}
+            <span className="text-xs font-normal text-slate-500">/100</span>
+          </div>
+        )}
+      </div>
+
+      {/* Focus / distraction bar */}
+      <div className="space-y-1.5">
+        <div className="h-2 bg-slate-700/80 rounded-full overflow-hidden flex gap-px">
+          <div
+            className="h-full bg-green-500 rounded-l-full transition-all duration-1000 flex-shrink-0"
+            style={{ width: `${focusPct}%` }}
+          />
+          <div
+            className="h-full bg-red-500 transition-all duration-1000 flex-shrink-0"
+            style={{ width: `${distractPct}%` }}
+          />
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1 text-green-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+              {fmtMin(focusSec)} focused
+            </span>
+            {distractedSec > 0 && (
+              <span className="flex items-center gap-1 text-red-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                {fmtMin(distractedSec)} lost
+              </span>
+            )}
+          </div>
+          {contextSwitches > 0 && (
+            <span className="flex items-center gap-1 text-slate-500">
+              <ArrowLeftRight size={10} />
+              {contextSwitches} switch{contextSwitches !== 1 ? 'es' : ''}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Streak-to-flow progress */}
+      {showStreak && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-amber-400 flex items-center gap-1">
+              <Flame size={10} />
+              {fmtMin(streakSec)} focus streak
+            </span>
+            <span className="text-slate-500">{fmtMin(Math.max(0, streakToFlowSec))} to flow</span>
+          </div>
+          <div className="h-1 bg-slate-700/80 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+              style={{ width: `${streakPct}%` }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
